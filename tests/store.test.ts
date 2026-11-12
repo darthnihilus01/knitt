@@ -44,3 +44,20 @@ test("invalid and oversized events are rejected before storage", () => {
     assert.equal(store.context({ repoId: "r", featureId: "f" }).total, 0);
   } finally { store.close(); }
 });
+
+test("search retrieves older decisions with pagination while isolating feature and repository", () => {
+  const store = new MemoryStore(":memory:");
+  try {
+    for (let i = 0; i < 4; i++) store.save({ eventId: String(i), repoId: "r", featureId: "f", kind: "decision", content: "connector choice " + i });
+    store.save({ eventId: "other", repoId: "r", featureId: "other", kind: "decision", content: "connector private" });
+    const first = store.search({ repoId: "r", featureId: "f", query: "connector", limit: 2 });
+    assert.equal(first.matches.length, 2);
+    assert.equal(first.matches[0].eventId, "3");
+    assert.ok(first.nextCursor);
+    const next = store.search({ repoId: "r", featureId: "f", before: first.nextCursor, limit: 2 });
+    assert.deepEqual(next.matches.map(m => m.eventId), ["1", "0"]);
+    assert.equal(next.nextCursor, null);
+    assert.equal(store.search({ repoId: "different", featureId: "f" }).matches.length, 0);
+    assert.equal(store.search({ repoId: "r", featureId: "f", query: "unknown" }).matches.length, 0);
+  } finally { store.close(); }
+});

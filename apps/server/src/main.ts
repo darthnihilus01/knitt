@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { MemoryStore } from "../../../packages/memory/src/store.ts";
-import { eventSchema, scopeSchema } from "../../../packages/contracts/src/events.ts";
+import { eventSchema, scopeSchema, searchSchema } from "../../../packages/contracts/src/events.ts";
 
 const dbPath = process.env.MEMORY_DB ?? resolve(".memory/events.sqlite");
 mkdirSync(dirname(dbPath), { recursive: true, mode: 0o700 });
@@ -29,6 +29,11 @@ server.registerTool("get_evidence", {
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   inputSchema: { repoId: z.string().min(1).max(256), eventId: z.string().min(1).max(256) },
 }, async ({ repoId, eventId }) => result({ event: store.evidence(repoId, eventId) }));
+server.registerTool("search_memory", {
+  description: "Search all stored text for a repository feature, including older imported history. Returns excerpts and evidence IDs. Use an empty query to browse, then pass nextCursor as before for the next page. Fetch full records with get_evidence.",
+  inputSchema: searchSchema.shape,
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+}, async input => result(store.search(input)));
 await server.connect(new StdioServerTransport());
 let closing = false;
 async function shutdown() {

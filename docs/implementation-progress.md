@@ -35,3 +35,13 @@ The Antigravity pilot exposed step-based JSONL records (USER_INPUT with USER_REQ
 The live Codex source session and destination session are recorded in local pilot logs. A fresh destination session was given no synthetic feature facts and made a successful shared-memory get_context call. It correctly recalled the duplicate-invoice failure, upstream-ID idempotency decision, simultaneous-retry next step and verification marker. No destination filesystem tool call was observed. Local raw pilot logs are Git-ignored under .memory.
 
 The installer defaults feature identity to the active branch. An explicit MEMORY_FEATURE supports cross-branch handoffs. Team identity and remote storage are still pending. Local Codex CLI behavior is verified; desktop UI session behavior is not yet independently tested.
+
+## Product-managed historical handoff
+
+Added the public memory list/handoff commands. A handoff selects an Antigravity conversation by title or ID, derives the workspace and repository, imports its readable JSONL history or selected indexed text, and configures only the destination Codex connection. Feature identity is pinned to the selected conversation. Existing unrelated settings are preserved, backups are local, and generated files are excluded via the destination repository's local Git exclusion file. No source content is written into the product repository.
+
+Added search_memory for scoped text lookup and pagination across older records. The command itself is exercised in a process integration test, including a preview without writes, selected-only import, removal of credentials from remote identity, and preservation of source-client settings.
+
+Ran the same product command against the conversation selected by the user. It imported 55 records from its existing transcript. A fresh Codex session in the derived workspace automatically called get_context and recovered the last completed milestone and pending task. The receiving test did not inspect repository files or receive the source facts in its prompt. Native hook review was completed through Codex's standard interface. Raw conversation data and verification logs remain local and Git-ignored.
+
+The historical transfer works without calling the quota-blocked source model. Live source response generation remains blocked by that account's quota. The source branch differs from the current checkout, so continuation must verify the appropriate branch before editing. No branch switch or source-project code edit was performed.

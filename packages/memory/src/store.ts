@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { eventSchema, scopeSchema } from "../../contracts/src/events.ts";
+import { eventSchema, scopeSchema, searchSchema } from "../../contracts/src/events.ts";
 import type { StoredEvent } from "../../contracts/src/events.ts";
 
 export class MemoryStore {
@@ -48,6 +48,22 @@ export class MemoryStore {
   evidence(repoId: string, eventId: string): StoredEvent | null {
     const row = this.db.prepare("SELECT payload,received FROM events WHERE repo=? AND id=?").get(repoId, eventId);
     return row ? { ...JSON.parse(String(row.payload)), receivedAt: String(row.received) } : null;
+  }
+  search(input: unknown) {
+    const scope = searchSchema.parse(input);
+    const rows = this.db.prepare(
+      "SELECT seq,payload,received FROM events WHERE repo=? AND feature=? AND seq < ? " +
+      "AND instr(lower(json_extract(payload,'$.content')),lower(?)) > 0 ORDER BY seq DESC LIMIT ?"
+    ).all(scope.repoId, scope.featureId, scope.before ?? Number.MAX_SAFE_INTEGER, scope.query, scope.limit + 1);
+    const selected = rows.slice(0, scope.limit);
+    const matches = selected.map(row => {
+      const event = JSON.parse(String(row.payload)) as StoredEvent;
+      const { content, ...metadata } = event;
+      const match = content.toLowerCase().indexOf(scope.query.toLowerCase());
+      const start = Math.max(0, match - 100);
+      return { ...metadata, receivedAt: String(row.received), excerpt: content.slice(start, start + 1000) };
+    });
+    return { matches, nextCursor: rows.length > scope.limit ? Number(selected[selected.length - 1].seq) : null };
   }
   close() { this.db.close(); }
 }

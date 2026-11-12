@@ -29,6 +29,7 @@ The tools are:
 - `save_memory` accepts eventId, repoId, featureId, kind and content. Optional branch, commit, author, sessionId and source preserve attribution. Kinds are goal, decision, attempt, progress, test_result, blocker and next_step.
 - `get_context` accepts repoId, featureId, optional branch and maxChars. It returns newest evidence first, with total and truncated fields. The character budget covers the serialized events array. Inspect truncated before assuming the history is complete.
 - `get_evidence` retrieves one original event using repoId and eventId.
+- `search_memory` searches all stored text within a repository feature. It returns short excerpts and evidence IDs. An empty query browses history. Pass `nextCursor` as `before` for the next page, and fetch complete records with `get_evidence`.
 
 Generate a stable event ID before the first save and reuse it for retries. Identical retries return the existing event. Reusing an ID for changed content fails.
 
@@ -77,3 +78,21 @@ Start fresh agent sessions after installing. In Codex, review the generated hook
 Repository identity is configured once. The active branch becomes the feature ID and branch filter by default. To share one feature across different branches, launch the clients with the same `MEMORY_FEATURE` value and omit `MEMORY_BRANCH` to retrieve all feature branches. A detached checkout requires an explicit feature ID.
 
 Verified on this development machine: the Antigravity CLI executed the startup recall hook, but its account quota prevented a model response. A separate live Codex session automatically captured a synthetic conversation, and a fresh Codex session retrieved the failed approach, decision and next test through MCP without those facts in the destination prompt. A live Antigravity-to-Codex assistant-response handoff remains pending.
+
+## Continue an existing Antigravity conversation in Codex
+
+Run the product command from the memory application directory:
+
+```bash
+npm run memory -- handoff --conversation "Your conversation title" --to codex
+```
+
+The command finds that conversation in Antigravity's local index, determines its workspace and repository, imports its existing user and assistant text, and installs a Codex MCP connection and capture/recall hooks in that workspace. It binds the destination to the selected conversation so an unrelated branch's memory does not replace the handoff. It works with existing history even if hooks were not installed when the source conversation began. If the source agent is quota-blocked, importing its readable local history does not require another model response.
+
+Open the identified workspace in Codex, review the generated project hooks if prompted, then start a fresh chat and say **Continue the task from the imported Antigravity conversation.** The startup hook directs Codex to retrieve the saved context. Existing code and branch state still need to be checked before continuing implementation.
+
+Use `--preview` to see the selected workspace and destination before applying changes. Use `npm run memory -- list --workspace /absolute/path` to list conversation titles and IDs. Duplicate titles require an exact ID and, when necessary, a workspace filter. Only the selected conversation's content is imported. A readable JSONL transcript is preferred. If it is unavailable, the importer can use that conversation's indexed user/assistant text. Indexed text may group messages by role within a chunk. Tool output, images and hidden reasoning are outside this text handoff.
+
+The command currently supports local Antigravity-to-Codex handoffs. Private history, database files, backups and machine-specific client settings stay outside source control. Installed history is scoped by repository and selected conversation. Re-running the command imports newly available text without duplicating existing evidence.
+
+Verified with an existing Antigravity conversation: the command imported 55 records, installed the destination connection, and a fresh Codex session successfully called `get_context` and recovered the last completed milestone and outstanding task without reading repository files or receiving a pasted summary. The live source generation test remains quota-blocked, while historical conversation transfer is verified.

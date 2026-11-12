@@ -40,7 +40,7 @@ function messageText(row: Record<string, any>): string | null {
   return text ? role + ": " + text : null;
 }
 
-function chunks(text: string): string[] {
+export function splitText(text: string): string[] {
   const result: string[] = [];
   let part = "";
   let bytes = 0;
@@ -93,7 +93,7 @@ export function captureTranscript(options: CaptureOptions) {
         if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error("Invalid transcript record");
         const text = messageText(row);
         if (text) {
-          const contentParts = chunks(redact(text));
+          const contentParts = splitText(redact(text));
           for (const [index, content] of contentParts.entries()) {
             const event = eventSchema.parse({
               ...scope, sessionId, kind: "progress", content,

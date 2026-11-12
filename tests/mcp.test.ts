@@ -48,6 +48,11 @@ test("two independent MCP processes share persistent feature evidence", async ()
     assert.equal(invalid.isError, true);
     const evidence = await destination.callTool({ name: "get_evidence", arguments: { repoId: fixture.repoId, eventId: "1" } });
     assert.ok(JSON.stringify(evidence).includes("duplicate order"));
+    const search = await destination.callTool({ name: "search_memory", arguments: {
+      repoId: fixture.repoId, featureId: fixture.featureId, query: "idempotency",
+    } });
+    assert.ok(!search.isError);
+    assert.ok(JSON.stringify(search.structuredContent).includes("idempotency"));
   } finally {
     await source?.close();
     await destination?.close();

@@ -22,3 +22,11 @@ export const scopeSchema = z.object({
 });
 export type MemoryEvent = z.infer<typeof eventSchema>;
 export type StoredEvent = MemoryEvent & { receivedAt: string };
+
+export const searchSchema = z.object({
+  repoId: identifier,
+  featureId: identifier,
+  query: z.string().max(256).default(""),
+  before: z.number().int().positive().optional(),
+  limit: z.number().int().min(1).max(20).default(10),
+});

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, mkdtempSync, w
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { atomicWrite, type ConnectionOptions } from './connections.ts';
-export const packageName = 'shared-agent-memory';
+export const packageName = '@tinchu0/knitt';
 export type Runtime = { version: string; appRoot: string; node: string };
 export type Project = Pick<ConnectionOptions, 'workspace' | 'repoId' | 'clients' | 'database'>;
 export type Installation = { schema: 1; current: Runtime; previous?: Runtime; projects: Project[] };

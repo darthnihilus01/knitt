@@ -12,7 +12,7 @@ test('runtime install is durable, versioned and does not replace active version 
   const makePackage = (version: string) => {
     const dir = join(root, version); mkdirSync(join(dir, 'dist/apps/server/src'), { recursive: true });
     mkdirSync(join(dir, 'dist/packages/installer/src'), { recursive: true });
-    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'shared-agent-memory', version, type: 'module' }));
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: '@tinchu0/knitt', version, type: 'module' }));
     writeFileSync(join(dir, 'dist/apps/server/src/main.js'), 'export {};');
     writeFileSync(join(dir, 'dist/packages/installer/src/cli.js'), "console.log('runtime ok');");
     const result = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', root], { cwd: dir, encoding: 'utf8' }));

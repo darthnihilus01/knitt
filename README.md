@@ -1,22 +1,22 @@
-# Shared Agent Memory
+# Knitt
 
 Carry selected repository conversation context between coding agents. Choose the chat you want to continue, retrieve its checkpoint through MCP, and capture new progress using supported coding hooks.
 
 ## npm installation (release candidate)
 
-The npm CLI is being prepared for publication. **It is not published yet:** the registry name/publisher and open-source license are still release decisions. Until then, test the same distribution artifact locally:
+The npm CLI is being prepared for publication. **It is not published yet:** the selected package is `@tinchu0/knitt`, but publisher access and an open-source license still need confirmation. Until then, test the same distribution artifact locally:
 
 ```bash
 npm ci
 npm run build
 npm pack
-npx --yes --package ./shared-agent-memory-0.1.0.tgz shared-agent-memory setup \
-  --package /absolute/path/to/shared-agent-memory-0.1.0.tgz
+npx --yes --package ./tinchu0-knitt-0.1.0.tgz knitt setup \
+  --package /absolute/path/to/tinchu0-knitt-0.1.0.tgz
 ```
 
 Setup asks for a Git project folder and agents. It shows configuration changes before applying them, installs a persistent runtime in your user data directory, and leaves client login/trust prompts to the client. Node.js 24+ and Git are required. The npm installation path does not require Python or a source checkout once the tarball exists.
 
-Once a registry package has actually been published, the intended entry point is `npx <published-package>@latest setup`. That placeholder is not a current install command.
+Once a registry package has actually been published, the intended entry point is `npx @tinchu0/knitt@latest setup`. That placeholder is not a current install command.
 
 Supported installer preview: Linux; macOS uses POSIX hooks but still needs platform validation. Native Windows installation is explicitly blocked pending implementation and tests; WSL can use the Linux path. Claude Desktop currently receives a configuration fragment requiring a manual merge into Desktop settings. No universal client compatibility is claimed.
 
@@ -51,4 +51,4 @@ npm run test:package
 
 The legacy Python development installer remains available under `scripts/connect.py`. Published CLI setup and handoff installation use the Node-only planner.
 
-This repository remains a release candidate. Public release additionally requires publisher/name confirmation, a license, a full-history/private-data audit and supported-platform evidence. No npm publication or repository visibility change is performed by building or packing.
+This repository remains a release candidate. Public release additionally requires publisher access confirmation, a license, a full-history/private-data audit and supported-platform evidence. No npm publication or repository visibility change is performed by building or packing.

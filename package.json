@@ -1,5 +1,5 @@
 {
-  "name": "shared-agent-memory",
+  "name": "@tinchu0/knitt",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -30,7 +30,7 @@
     "typescript": "^7.0.2"
   },
   "bin": {
-    "shared-agent-memory": "dist/packages/installer/src/cli.js"
+    "knitt": "dist/packages/installer/src/cli.js"
   },
   "files": [
     "dist/",
@@ -41,5 +41,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/darthnihilus01/shared-agent-memory.git"
+  },
+  "description": "Shared conversation memory for coding agents",
+  "publishConfig": {
+    "access": "public"
   }
 }

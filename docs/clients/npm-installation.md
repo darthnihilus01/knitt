@@ -14,9 +14,9 @@ npm pack
 Then use the tarball (absolute paths work from any directory):
 
 ```bash
-npx --yes --package ./shared-agent-memory-0.1.0.tgz shared-agent-memory setup \
+npx --yes --package ./tinchu0-knitt-0.1.0.tgz knitt setup \
   --workspace /path/to/project --client codex --client claude-code \
-  --package /absolute/path/to/shared-agent-memory-0.1.0.tgz
+  --package /absolute/path/to/tinchu0-knitt-0.1.0.tgz
 ```
 
 The outer `--package` tells npx which CLI to run. The `--package` after `setup` tells setup which exact artifact to install persistently. Before registry publication this second argument is required for applying setup; preview can run without it. While the package is private, applying setup/update without an explicit artifact is blocked to avoid fetching an unrelated registry package. After publication, omitting the internal package argument installs the CLI's exact published version. `update` defaults to the registry's latest version instead.
@@ -41,12 +41,12 @@ The project-local `.memory/npm-connection.json` records original and generated s
 Run commands through the tarball CLI above (or the eventual published package):
 
 ```text
-shared-agent-memory setup --workspace PATH --client codex --preview
-shared-agent-memory doctor
-shared-agent-memory update --yes
-shared-agent-memory rollback --yes
-shared-agent-memory uninstall --workspace PATH --yes
-shared-agent-memory serve
+knitt setup --workspace PATH --client codex --preview
+knitt doctor
+knitt update --yes
+knitt rollback --yes
+knitt uninstall --workspace PATH --yes
+knitt serve
 ```
 
 Use the same `--home` for every lifecycle command if you customized it. `doctor` checks local installation/configuration, not account login or a live model handoff. Changed settings are reported for review.
@@ -57,6 +57,6 @@ Uninstall restores unchanged managed values and preserves independent additions 
 
 ## Release gates
 
-The package name `shared-agent-memory` is provisional; availability and publisher ownership are not confirmed. The repository still has `private: true` to prevent accidental registry publication. No license has been selected, so this is not yet a licensed open-source release. Native Windows setup deliberately fails rather than writing POSIX hook commands. Linux tarball checks are the current local verification target; macOS/Windows live client behavior remains unverified.
+The selected package is `@tinchu0/knitt`, owned by the intended npm account `tinchu0`. A registry lookup returned no public package on 2026-11-13; publisher access has not been verified. The repository still has `private: true` to prevent accidental registry publication. No license has been selected, so this is not yet a licensed open-source release. Native Windows setup deliberately fails rather than writing POSIX hook commands. Linux tarball checks are the current local verification target; macOS/Windows live client behavior remains unverified.
 
 ChatGPT, Claude web and teammate machines require a separately reachable authenticated service. Packaging a CLI does not supply hosting, authentication accounts or background synchronization.

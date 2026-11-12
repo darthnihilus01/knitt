@@ -59,7 +59,7 @@ async function main() {
   if (values.version) { console.log(version); return; }
   const action = positionals[0];
   if (!action || values.help) {
-    console.log('Shared Agent Memory ' + version + '\nCommands: setup, doctor, update, rollback, uninstall, serve\nOptions: --workspace PATH --client codex|claude-code|antigravity|claude-desktop (repeatable)\n         --preview --yes --home PATH --package TARBALL_OR_VERSION_SPEC\nSetup configures a persistent local runtime; remote/team service is configured separately.'); return;
+    console.log('Knitt ' + version + '\nCommands: setup, doctor, update, rollback, uninstall, serve\nOptions: --workspace PATH --client codex|claude-code|antigravity|claude-desktop (repeatable)\n         --preview --yes --home PATH --package TARBALL_OR_VERSION_SPEC\nSetup configures a persistent local runtime; remote/team service is configured separately.'); return;
   }
   const home = resolve(values.home ?? defaultHome()), paths = runtimePaths(home);
   if (action === 'serve') {

@@ -20,10 +20,10 @@ try {
   }
   const archive = join(root, packed.filename), bootstrap = join(root, 'temporary bootstrap');
   const npxCache = join(root, 'temporary npx cache');
-  assert.equal(run('npm', ['exec', '--yes', '--cache', npxCache, '--package', archive, '--', 'shared-agent-memory', '--version']).trim(), '0.1.0');
+  assert.equal(run('npm', ['exec', '--yes', '--cache', npxCache, '--package', archive, '--', 'knitt', '--version']).trim(), '0.1.0');
   rmSync(npxCache, { recursive: true, force: true });
   run('npm', ['install', '--prefix', bootstrap, '--ignore-scripts', '--no-audit', '--no-fund', archive]);
-  const cli = join(bootstrap, 'node_modules/shared-agent-memory/dist/packages/installer/src/cli.js');
+  const cli = join(bootstrap, 'node_modules/@tinchu0/knitt/dist/packages/installer/src/cli.js');
   assert.equal(run(process.execPath, [cli, '--version']).trim(), '0.1.0');
   const workspace = join(root, 'consumer project'), home = join(root, 'permanent home');
   run('git', ['init', '--initial-branch=main', workspace]);

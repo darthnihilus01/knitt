@@ -15,7 +15,7 @@ test("two independent MCP processes share persistent feature evidence", async ()
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [resolve("apps/server/src/main.ts")],
-      env: { ...env, MEMORY_DB: join(dir, "events.sqlite") },
+      env: { ...env, MEMORY_DB: join(dir, "events.sqlite"), MEMORY_REPO: fixture.repoId },
       stderr: "inherit",
     });
     const client = new Client({ name: "handoff-test", version: "1" });
@@ -83,5 +83,34 @@ test("Antigravity transcript hook delivers evidence to a fresh MCP process", asy
     assert.equal(data.events.length, 1);
     assert.ok(data.events[0].content.includes("idempotency"));
     assert.ok(data.events[0].content.includes("concurrency"));
+  } finally { await client.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a project MCP connection rejects another repository across every memory tool", async () => {
+  const { MemoryStore } = await import("../packages/memory/src/store.ts");
+  const dir = mkdtempSync(join(tmpdir(), "memory-boundary-"));
+  const database = join(dir, "events.sqlite");
+  const store = new MemoryStore(database);
+  store.save({ eventId: "private", repoId: "other-repo", featureId: "handoff", kind: "decision", content: "Other repository decision" });
+  store.save({ eventId: "other-feature", repoId: "allowed-repo", featureId: "other-feature", kind: "decision", content: "Different feature decision" });
+  store.close();
+  const env = { ...process.env, MEMORY_DB: database, MEMORY_REPO: "allowed-repo", MEMORY_FEATURE: "handoff" };
+  delete (env as Record<string, string | undefined>).NODE_TEST_CONTEXT;
+  const client = new Client({ name: "wrong-project-test", version: "1" });
+  try {
+    await client.connect(new StdioClientTransport({ command: process.execPath, args: [resolve("apps/server/src/main.ts")], env }));
+    for (const [name, args] of [
+      ["get_context", { repoId: "other-repo", featureId: "handoff" }],
+      ["search_memory", { repoId: "other-repo", featureId: "handoff" }],
+      ["get_evidence", { repoId: "other-repo", eventId: "private" }],
+      ["save_memory", { repoId: "other-repo", featureId: "handoff", eventId: "bad", kind: "progress", content: "wrong project" }],
+      ["get_evidence", { repoId: "allowed-repo", eventId: "other-feature" }],
+      ["get_context", { repoId: "allowed-repo", featureId: "other-feature" }],
+    ] as const) {
+      const result = await client.callTool({ name, arguments: args });
+      assert.equal(result.isError, true, name + " exposed a different repository or handoff");
+    }
+    const allowed = await client.callTool({ name: "get_context", arguments: { repoId: "allowed-repo", featureId: "handoff" } });
+    assert.ok(!allowed.isError);
   } finally { await client.close(); rmSync(dir, { recursive: true, force: true }); }
 });

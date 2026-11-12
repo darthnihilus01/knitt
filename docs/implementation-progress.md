@@ -45,3 +45,13 @@ Added search_memory for scoped text lookup and pagination across older records. 
 Ran the same product command against the conversation selected by the user. It imported 55 records from its existing transcript. A fresh Codex session in the derived workspace automatically called get_context and recovered the last completed milestone and pending task. The receiving test did not inspect repository files or receive the source facts in its prompt. Native hook review was completed through Codex's standard interface. Raw conversation data and verification logs remain local and Git-ignored.
 
 The historical transfer works without calling the quota-blocked source model. Live source response generation remains blocked by that account's quota. The source branch differs from the current checkout, so continuation must verify the appropriate branch before editing. No branch switch or source-project code edit was performed.
+
+## Wrong-project handoff regression
+
+The reported chat was opened in the memory-product workspace. Its MCP connection could request imported context from a different repository because server-side binding was absent. Inspection of the interrupted chat showed repository reads and no file-writing actions. The identified connector worktree was clean at the checked commit. Existing unrelated files were preserved.
+
+Added mandatory MEMORY_REPO binding for all MCP tools, optional feature binding including evidence lookup, and workspace validation before hooks resolve a feature. The installer now sets the server repository/feature, startup directory and hook workspace. Reinstalled both current local connections. Existing client processes need to reconnect and changed hook definitions require normal native review.
+
+Added --launch to execute Codex CLI with the destination directory explicitly selected. Desktop project/chat routing remains pending. This fix restricts memory access and clarifies routing; the coding client's own tools and filesystem permissions remain outside the memory server's control.
+
+Regression tests first reproduced both cross-repository retrieval and wrong-workspace recall, then passed after the fix. The complete suite now has 24 passing tests, with TypeScript checks passing.

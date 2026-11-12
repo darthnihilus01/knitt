@@ -15,7 +15,8 @@ Configure a stdio server using absolute paths. For this checkout:
       "command": "/home/tinchu/.nvm/versions/node/v24.18.0/bin/node",
       "args": ["/home/tinchu/Documents/ChatGPT/rigved/apps/server/src/main.ts"],
       "env": {
-        "MEMORY_DB": "/home/tinchu/Documents/ChatGPT/rigved/.memory/events.sqlite"
+        "MEMORY_DB": "/home/tinchu/Documents/ChatGPT/rigved/.memory/events.sqlite",
+        "MEMORY_REPO": "github.com/darthnihilus01/shared-agent-memory"
       }
     }
   }
@@ -23,6 +24,8 @@ Configure a stdio server using absolute paths. For this checkout:
 ```
 
 Both local clients must use the same database path. Adapt the configuration to the client's supported format. This sample has not been installed in your agents.
+
+Every MCP connection requires `MEMORY_REPO` and rejects requests for a different repository across all tools. Setting `MEMORY_FEATURE` additionally restricts it to that handoff. Existing running clients must reconnect after updating their configuration. These are memory-service checks. Agent filesystem permissions remain controlled by the coding client.
 
 The tools are:
 
@@ -87,9 +90,19 @@ Run the product command from the memory application directory:
 npm run memory -- handoff --conversation "Your conversation title" --to codex
 ```
 
+To start the destination directly in Codex CLI, add `--launch`:
+
+```bash
+npm run memory -- handoff --conversation "Your conversation title" --to codex --launch
+```
+
+The launch uses the discovered destination as both the process directory and Codex's `--cd` argument. It opens the local CLI with `--no-daemon` and goes through normal hook review. Desktop chat creation and project selection are not automated by this option. A new chat opened under the memory-product project still belongs to that project.
+
 The command finds that conversation in Antigravity's local index, determines its workspace and repository, imports its existing user and assistant text, and installs a Codex MCP connection and capture/recall hooks in that workspace. It binds the destination to the selected conversation so an unrelated branch's memory does not replace the handoff. It works with existing history even if hooks were not installed when the source conversation began. If the source agent is quota-blocked, importing its readable local history does not require another model response.
 
 Open the identified workspace in Codex, review the generated project hooks if prompted, then start a fresh chat and say **Continue the task from the imported Antigravity conversation.** The startup hook directs Codex to retrieve the saved context. Existing code and branch state still need to be checked before continuing implementation.
+
+Installed hooks record `MEMORY_WORKSPACE` and compare the current Git repository with the configured destination before capture or recall. Linked worktrees of that same repository are allowed. A mismatch returns a visible handoff warning without recalling or capturing context. The startup instruction tells the agent to report a different required checkout before editing there.
 
 Use `--preview` to see the selected workspace and destination before applying changes. Use `npm run memory -- list --workspace /absolute/path` to list conversation titles and IDs. Duplicate titles require an exact ID and, when necessary, a workspace filter. Only the selected conversation's content is imported. A readable JSONL transcript is preferred. If it is unavailable, the importer can use that conversation's indexed user/assistant text. Indexed text may group messages by role within a chunk. Tool output, images and hidden reasoning are outside this text handoff.
 

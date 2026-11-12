@@ -32,7 +32,7 @@ if not 0 < len(args.repo_id) <= 256:
 def hook(client, action):
     feature = ["MEMORY_FEATURE=" + args.feature_id] if args.feature_id else []
     return shlex.join(["env", *feature, "MEMORY_REPO=" + args.repo_id,
-        "MEMORY_DB=" + database, "MEMORY_QUEUE=" + str(app / ".memory/queue" / client),
+        "MEMORY_WORKSPACE=" + str(workspace), "MEMORY_DB=" + database, "MEMORY_QUEUE=" + str(app / ".memory/queue" / client),
         node, runner, action, client])
 
 def handler(client, action):
@@ -70,7 +70,7 @@ try:
 
         mcp = json_file(".agents/mcp_config.json")
         servers = mcp.setdefault("mcpServers", {})
-        connection = {"command": node, "args": [server], "env": {"MEMORY_DB": database}}
+        connection = {"command": node, "args": [server], "cwd": str(workspace), "env": {"MEMORY_DB": database, "MEMORY_REPO": args.repo_id, **({"MEMORY_FEATURE": args.feature_id} if args.feature_id else {})}}
         if "shared-memory" in servers and servers["shared-memory"].get("args") != [server]:
             raise ValueError("An unrelated Antigravity shared-memory server already exists")
         servers["shared-memory"] = connection
@@ -101,7 +101,9 @@ try:
             start + "\n[mcp_servers.shared-memory]\ndefault_tools_approval_mode = \"writes\"\n"
             + "command = " + json.dumps(node) + "\n"
             + "args = " + json.dumps([server]) + "\n"
-            + "env = { MEMORY_DB = " + json.dumps(database) + " }\n" + end + "\n"
+            + "cwd = " + json.dumps(str(workspace)) + "\n"
+            + "env = { MEMORY_DB = " + json.dumps(database) + ", MEMORY_REPO = " + json.dumps(args.repo_id)
+            + (", MEMORY_FEATURE = " + json.dumps(args.feature_id) if args.feature_id else "") + " }\n" + end + "\n"
         )
         new_toml = original.rstrip() + "\n\n" + block
         tomllib.loads(new_toml)

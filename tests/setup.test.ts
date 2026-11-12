@@ -48,3 +48,29 @@ test("scope follows the active branch without per-session environment setup", as
     });
   } finally { rmSync(workspace, { recursive: true, force: true }); }
 });
+
+test("bound hooks refuse a different repository even with an explicit imported feature", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { resolveScope } = await import("../packages/adapters/src/scope.ts");
+  const root = mkdtempSync(join(tmpdir(), "scope-boundary-"));
+  const expected = join(root, "expected");
+  const wrong = join(root, "wrong");
+  try {
+    execFileSync("git", ["init", "--initial-branch=main", expected], { stdio: "ignore" });
+    execFileSync("git", ["init", "--initial-branch=main", wrong], { stdio: "ignore" });
+    assert.throws(() => resolveScope({ cwd: wrong }, {
+      MEMORY_REPO: "expected-repo", MEMORY_FEATURE: "imported", MEMORY_WORKSPACE: expected,
+    }), /workspace|repository/i);
+    assert.equal(resolveScope({ cwd: expected }, {
+      MEMORY_REPO: "expected-repo", MEMORY_FEATURE: "imported", MEMORY_WORKSPACE: expected,
+    }).featureId, "imported");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("handoff launch pins Codex to the destination instead of the caller's workspace", async () => {
+  const { codexLaunch } = await import("../packages/adapters/src/launch.ts");
+  const launch = codexLaunch("/target/project with spaces");
+  assert.equal(launch.command, "codex");
+  assert.equal(launch.args[launch.args.indexOf("--cd") + 1], "/target/project with spaces");
+  assert.ok(launch.args.at(-1)?.includes("Verify this repository"));
+});

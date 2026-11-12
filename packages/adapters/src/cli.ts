@@ -27,7 +27,7 @@ try {
   }
   const scope = resolveScope(payload);
   if (action === "recall") {
-    console.log(JSON.stringify(recallInstruction(client as ClientName, scope)));
+    console.log(JSON.stringify(recallInstruction(client as ClientName, scope, process.env.MEMORY_WORKSPACE)));
   } else if (action === "capture" || action === "flush") {
     const directory = process.env.MEMORY_QUEUE ?? resolve(".memory/queue");
     if (action === "capture") {
@@ -54,5 +54,11 @@ try {
 } catch (error) {
   // Hook failure must not prevent the user's coding turn.
   console.error("Shared memory: " + (error instanceof Error ? error.message : String(error)));
-  console.log("{}");
+  if (action === "recall" && process.env.MEMORY_WORKSPACE) {
+    const message = "Memory handoff blocked. " + (error instanceof Error ? error.message : String(error));
+    console.log(JSON.stringify({
+      continue: false, systemMessage: message,
+      hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: message + " Do not continue imported work or edit another project from this chat." },
+    }));
+  } else console.log("{}");
 }

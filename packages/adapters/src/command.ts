@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { findConversations, selectConversation, importConversation } from "./handoff.ts";
 import { MemoryStore } from "../../memory/src/store.ts";
+import { codexLaunch, displayCommand } from "./launch.ts";
 
 function main() {
   const { values, positionals } = parseArgs({
@@ -15,6 +16,7 @@ function main() {
       conversation: { type: "string" }, workspace: { type: "string" },
       from: { type: "string", default: "antigravity" }, to: { type: "string", default: "codex" },
       "data-root": { type: "string", multiple: true }, preview: { type: "boolean", default: false },
+      launch: { type: "boolean", default: false },
     },
   });
   const action = positionals[0];
@@ -40,6 +42,7 @@ function main() {
   const app = resolve(fileURLToPath(new URL("../../../", import.meta.url)));
   const database = process.env.MEMORY_DB ?? join(app, ".memory/events.sqlite");
   const featureId = "antigravity:" + conversation.id;
+  const launch = codexLaunch(workspace);
   if (values.preview) {
     console.log(JSON.stringify({ action, title: conversation.title, workspace, repoId, featureId, destination: "codex", database, changesApplied: false }, null, 2));
     return;
@@ -59,8 +62,14 @@ function main() {
     "--node", process.execPath, "--repo-id", repoId, "--feature-id", featureId,
     "--database", database, "--client", "codex", "--apply",
   ], { stdio: ["ignore", "inherit", "inherit"] });
-  console.log(JSON.stringify({ title: conversation.title, workspace, repoId, ...report, ready: true }, null, 2));
-  console.log("Open this workspace in Codex, review its project memory hooks if prompted, and start a fresh chat with: Continue the task from the imported Antigravity conversation.");
+  console.log(JSON.stringify({ title: conversation.title, workspace, repoId, ...report, ready: true, destinationCommand: displayCommand(launch.command, launch.args) }, null, 2));
+  if (values.launch) {
+    execFileSync(launch.command, launch.args, { cwd: workspace, stdio: "inherit" });
+  } else {
+    console.log("Continue in the destination workspace with this command, or rerun handoff with --launch:");
+    console.log(displayCommand(launch.command, launch.args));
+    console.log("Starting a chat in the memory-product project does not switch it to the destination workspace.");
+  }
 }
 
 try { main(); }

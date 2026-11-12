@@ -47,7 +47,7 @@ The hook runner is `packages/adapters/src/cli.ts`. It accepts `capture`, `recall
 - `MEMORY_DB` must match the MCP server's absolute database path.
 - `MEMORY_QUEUE` selects an absolute private queue directory.
 
-Examples for Claude Code and Antigravity are under `examples/`. Replace the absolute path placeholder and merge the entries into the client's configuration. They have not been installed in your agents. Codex hook output is supported by the runner, but a Codex installation example is pending.
+Examples for Claude Code and Antigravity are under `examples/`. For an Antigravity and Codex connection, use the repository installer below. It generates machine-specific configuration rather than requiring edits to the examples.
 
 Recall emits a fixed instruction to call the MCP tool. The agent must have the MCP connection enabled. Capture queues supported hook text before attempting local delivery. Failed delivery leaves the event pending. Run the flush action or trigger another capture to retry, with up to 100 queued events delivered per invocation. There is no background retry daemon yet.
 
@@ -58,3 +58,22 @@ Transcript formats are tested using synthetic records. Actual Antigravity transc
 When no transcript path is supplied, capture falls back to Claude's final assistant message or Antigravity's latest user input. Text is stored as progress evidence without automatically classifying decisions or attempts. Retries use stable event IDs. The reader expects append-only JSONL and resets its position after truncation or a changed initial prefix.
 
 Basic credential redaction runs before queue persistence. It cannot identify every secret. Queue errors and pending counts go to stderr. Hook errors return an empty response so coding work can continue.
+
+## Connect Antigravity and Codex
+
+Preview the repository-scoped connection, then apply it:
+
+```bash
+python3 scripts/connect.py --node "$(command -v node)" --repo-id github.com/YOUR_ACCOUNT/YOUR_REPO
+python3 scripts/connect.py --node "$(command -v node)" --repo-id github.com/YOUR_ACCOUNT/YOUR_REPO --apply
+```
+
+Run from the repository to connect, or pass `--workspace /absolute/path/to/repository`. The memory application remains at the installer's own directory by default. Use `--app-root` if needed. All connected clients use its local database.
+
+The installer merges `.agents/hooks.json`, `.agents/mcp_config.json`, `.codex/hooks.json` and `.codex/config.toml`. Existing unrelated entries are preserved. The initial contents are backed up under `.memory/connection-backup.json`. Local client configurations and memory databases are excluded from this repository's Git history.
+
+Start fresh agent sessions after installing. In Codex, review the generated hooks through `/hooks` or Settings > Hooks. Recall tools advertise read-only behavior and the generated Codex connection prompts for memory-writing tools. The installer does not grant hook trust itself.
+
+Repository identity is configured once. The active branch becomes the feature ID and branch filter by default. To share one feature across different branches, launch the clients with the same `MEMORY_FEATURE` value and omit `MEMORY_BRANCH` to retrieve all feature branches. A detached checkout requires an explicit feature ID.
+
+Verified on this development machine: the Antigravity CLI executed the startup recall hook, but its account quota prevented a model response. A separate live Codex session automatically captured a synthetic conversation, and a fresh Codex session retrieved the failed approach, decision and next test through MCP without those facts in the destination prompt. A live Antigravity-to-Codex assistant-response handoff remains pending.

@@ -8,7 +8,7 @@
 | Codex desktop | Plugin with trusted hooks | SessionStart can direct the agent to retrieve the briefing through MCP. Keep teammate-authored text in tool results because hook additionalContext has developer authority. | Desktop handoff untested. |
 | Codex CLI | stdio or Streamable HTTP; HTTP bearer token can come from an environment variable | Same proposed startup recall as desktop. Validate capture separately before advertising reverse handoff. | Bundled CLI 0.167.0-alpha.3.2 reports stable hooks enabled and both MCP transports in help. |
 
-| Antigravity IDE | Custom MCP plus SessionStart/Stop hooks | Capture handles transcriptPath and conversationId. Recall emits injectSteps with an MCP retrieval instruction. | Synthetic hook-to-MCP process test passes. Live desktop serialization and execution untested. |
+| Antigravity IDE | Custom MCP plus SessionStart/Stop hooks | Capture handles transcriptPath and conversationId. Recall emits injectSteps with an MCP retrieval instruction. | CLI startup hook observed live. Quota blocked assistant response. USER_INPUT format observed; assistant formats fixture-tested. IDE UI handoff untested. |
 
 ## Test procedure
 
@@ -22,3 +22,5 @@ No end-to-end pass recorded. The hook-based Code path is a candidate for the pil
 Sources: [Claude connectors](https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities), [Desktop Code sessions](https://code.claude.com/docs/en/desktop), [Claude Code hooks](https://code.claude.com/docs/en/hooks), [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Codex plugin trust and installation](https://developers.openai.com/plugins/build/plugins).
 
 Adapter progress: incremental JSONL capture and a synthetic Antigravity hook-to-MCP handoff pass process integration tests. This is separate from the real two-user pilot above.
+
+Live local result: fresh Codex sessions verified automatic Stop capture and startup-driven get_context recall. Both repository hooks were enabled through normal Codex review. Antigravity SessionStart ran, but account quota blocked the model response, so the real cross-agent handoff is pending.

@@ -1,3 +1,8 @@
 node_modules/
 .memory/
 *.sqlite*
+# Local client connections contain machine-specific paths.
+.agents/hooks.json
+.agents/mcp_config.json
+.codex/hooks.json
+.codex/config.toml

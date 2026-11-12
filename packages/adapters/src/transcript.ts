@@ -21,6 +21,13 @@ function textBlocks(value: unknown): string {
 }
 
 function messageText(row: Record<string, any>): string | null {
+  if (row.type === "USER_INPUT" && typeof row.content === "string") {
+    const request = row.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
+    return "user: " + (request ? request[1].trim() : row.content);
+  }
+  if (["PLANNER_RESPONSE", "ASSISTANT_MESSAGE"].includes(row.type) && typeof row.content === "string") {
+    return "assistant: " + row.content;
+  }
   const message = row.type === "response_item" ? row.payload : (row.message ?? row);
   if (!message || typeof message !== "object") return null;
   const role = message.role ?? (["user", "assistant"].includes(row.type) ? row.type : undefined);

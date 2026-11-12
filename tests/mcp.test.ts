@@ -26,6 +26,9 @@ test("two independent MCP processes share persistent feature evidence", async ()
   let destination: Client | undefined;
   try {
     source = await connect();
+    const catalog = await source.listTools();
+    assert.equal(catalog.tools.find(t => t.name === "get_context")?.annotations?.readOnlyHint, true);
+    assert.equal(catalog.tools.find(t => t.name === "save_memory")?.annotations?.readOnlyHint, false);
     for (const [i, event] of fixture.sourceSession.entries()) {
       const result = await source.callTool({ name: "save_memory", arguments: {
         ...event, eventId: String(i), repoId: fixture.repoId, featureId: fixture.featureId, branch: fixture.branch,

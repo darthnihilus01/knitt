@@ -94,3 +94,22 @@ test("unrecognized conversational text cannot silently advance the capture curso
     assert.throws(() => captureTranscript(args), /Unsupported transcript/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("Antigravity step records preserve user requests and assistant responses while excluding hook system messages", () => {
+  const dir = mkdtempSync(join(tmpdir(), "transcript-"));
+  const path = join(dir, "session.jsonl");
+  try {
+    writeFileSync(path, [
+      { step_index: 0, source: "USER_EXPLICIT", type: "USER_INPUT", status: "DONE", content: "<USER_REQUEST>Retry duplicated orders.</USER_REQUEST>\n<ADDITIONAL_METADATA>private metadata</ADDITIONAL_METADATA>" },
+      { step_index: 1, type: "SYSTEM_MESSAGE", content: "Injected instructions should not enter memory" },
+      { step_index: 2, type: "PLANNER_RESPONSE", status: "DONE", content: "Decision: use order ID. Next test concurrency." },
+    ].map(e => JSON.stringify(e)).join("\n") + "\n");
+    const report = captureTranscript({ directory: dir, client: "antigravity", scope: { repoId: "r", featureId: "f" }, sessionId: "s", path });
+    assert.equal(report.events, 2);
+    const texts: string[] = [];
+    flush(dir, event => { texts.push(event.content); });
+    assert.ok(texts.some(t => t.includes("test concurrency")));
+    assert.ok(!texts.join().includes("private metadata"));
+    assert.ok(!texts.join().includes("Injected instructions"));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

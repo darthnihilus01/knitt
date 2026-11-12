@@ -1,0 +1,10 @@
+{
+  "shared-memory": {
+    "SessionStart": [
+      {"type":"command","command":"node /ABSOLUTE/PATH/rigved/packages/adapters/src/cli.ts recall antigravity","timeout":10}
+    ],
+    "Stop": [
+      {"type":"command","command":"node /ABSOLUTE/PATH/rigved/packages/adapters/src/cli.ts capture antigravity","timeout":10}
+    ]
+  }
+}

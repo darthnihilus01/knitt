@@ -1,0 +1,25 @@
+# Implementation progress
+
+## Local MCP prototype
+
+Implemented the official SDK stdio transport, SQLite persistence, schema validation, retry idempotency with conflicting-payload detection, repository/feature/branch filtering, bounded retrieval and original evidence lookup.
+
+Ruling: use SQLite for the first executable local milestone because cloud credits and a funded project are pending. Firestore remains the planned shared deployment backend. This postpones cloud datastore integration testing.
+
+Planning policy: compact implementation, contracts/store/transport scope, process integration verification, no delegation.
+
+Verified four tests outside the sandbox. They cover persistence, retries, conflicts, branch/repository filtering, bounded results, input rejection and a fixture transferred across independent MCP server processes. The sandbox closes subprocess input pipes and therefore cannot run that process integration test successfully. TypeScript checks pass.
+
+Pending: real agent capture and recall, authenticated team sharing, redaction, ingestion queue, Firestore, remote HTTP/OAuth, deployment and real two-user pilot. Task 1 remains documented rather than live-verified for desktop apps.
+
+## Hook runner preview
+
+Added a durable SQLite delivery queue, common credential redaction, capture of supported payload text, and client-specific recall instruction output for Claude Code, Codex and Antigravity. Added opt-in configuration examples for Claude Code and Antigravity. No agent configuration was installed.
+
+Adapter tests cover failed delivery/retry/deduplication, redaction before queue delivery, and MCP recall instructions. Full transcript extraction and real agent testing remain pending. Antigravity capture currently preserves latest user input only. Automatic retry is driven by capture/flush invocations rather than a background worker.
+
+## Incremental transcript capture
+
+Added transactional transcript checkpoints and queue writes, source byte offsets, stable event IDs, incomplete-line handling and bounded Unicode-safe event splitting. A synthetic Antigravity hook process now captures a conversation, flushes into SQLite, and a fresh MCP client retrieves the failed attempt, chosen approach and next step. Startup output for Codex is also checked in that integration test.
+
+All 13 tests and TypeScript checks passed. Supported message schemas are fixture-tested, not live desktop-verified. No actual user conversation was imported, no client configuration installed, and no cloud resources provisioned. Automatic extraction into decision/attempt categories and background retry remain pending.

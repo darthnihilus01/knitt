@@ -1,0 +1,15 @@
+{
+  "repoId": "pilot/orders",
+  "featureId": "retry-import",
+  "branch": "feature/retry-import",
+  "merged": false,
+  "sourceSession": [
+    {"kind":"goal","content":"Allow an interrupted order import to resume."},
+    {"kind":"attempt","content":"Retrying the entire batch created a duplicate order."},
+    {"kind":"decision","content":"Use the upstream order ID as an idempotency key because a retry can replay an accepted order."},
+    {"kind":"test_result","content":"The sequential retry test passed on the feature branch."},
+    {"kind":"next_step","content":"Test simultaneous retries of the same order."}
+  ],
+  "destinationPrompt": "Continue the retry-import feature.",
+  "acceptance": "In a fresh client with only the destination prompt, identify the rejected approach and observed failure, the chosen fix and reason, the passing check, unmerged branch, and outstanding concurrency test. Keep the fixture outside the destination workspace and record which memory entries were retrieved."
+}

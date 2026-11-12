@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks":[{"type":"command","command":"node /ABSOLUTE/PATH/rigved/packages/adapters/src/cli.ts recall claude","timeout":10}]}
+    ],
+    "Stop": [
+      {"hooks":[{"type":"command","command":"node /ABSOLUTE/PATH/rigved/packages/adapters/src/cli.ts capture claude","timeout":10}]}
+    ]
+  }
+}

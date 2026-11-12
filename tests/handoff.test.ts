@@ -93,7 +93,8 @@ test("handoff command imports history and connects only Codex without a handoff 
     assert.equal(run.status, 0, run.stderr);
     assert.ok(run.stdout.includes('"ready": true'));
     const installed = readFileSync(join(workspace, ".codex/hooks.json"), "utf8");
-    assert.ok(installed.includes("MEMORY_FEATURE=antigravity:s"));
+    assert.ok(installed.includes("MEMORY_SESSION_SELECTION=1"));
+    assert.ok(!installed.includes("MEMORY_FEATURE="));
     assert.ok(!installed.includes("credential"));
     assert.equal(readFileSync(join(workspace, ".agents/hooks.json"), "utf8"), '{"existing":true}');
     const store = new MemoryStore(env.MEMORY_DB);

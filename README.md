@@ -25,7 +25,7 @@ Configure a stdio server using absolute paths. For this checkout:
 
 Both local clients must use the same database path. Adapt the configuration to the client's supported format. This sample has not been installed in your agents.
 
-Every MCP connection requires `MEMORY_REPO` and rejects requests for a different repository across all tools. Setting `MEMORY_FEATURE` additionally restricts it to that handoff. Existing running clients must reconnect after updating their configuration. These are memory-service checks. Agent filesystem permissions remain controlled by the coding client.
+Every MCP connection requires `MEMORY_REPO` and rejects requests for a different repository across all tools. Product handoffs use `MEMORY_SESSION_SELECTION=1`, which requires an explicit conversation selection for each native coding session. Fixed `MEMORY_FEATURE` bindings remain available for legacy developer setups. Existing running clients must reconnect after updating their configuration. These are memory-service checks. Agent filesystem permissions remain controlled by the coding client.
 
 The tools are:
 
@@ -84,23 +84,25 @@ Verified on this development machine: the Antigravity CLI executed the startup r
 
 ## Continue an existing Antigravity conversation in Codex
 
-Run the product command from the memory application directory:
+Open the chat picker from the memory application directory:
 
 ```bash
-npm run memory -- handoff --conversation "Your conversation title" --to codex
+npm run memory -- handoff --launch
 ```
 
-To start the destination directly in Codex CLI, add `--launch`:
+The picker shows chat titles, project folders and last activity. Choose a displayed chat number, search with `s <text>`, or page with `n` and `p`. Enter or `q` cancels without importing or selecting anything. A chat is never selected by default. For scripted use, an explicit title or ID is still supported:
 
 ```bash
 npm run memory -- handoff --conversation "Your conversation title" --to codex --launch
 ```
 
-The launch uses the discovered destination as both the process directory and Codex's `--cd` argument. It opens the local CLI with `--no-daemon` and goes through normal hook review. Desktop chat creation and project selection are not automated by this option. A new chat opened under the memory-product project still belongs to that project.
+The launch uses the discovered destination as both the process directory and Codex's `--cd` argument. It carries the user's selected chat into that new process, where the startup hook binds it to the native session ID. It opens the local CLI with `--no-daemon` and goes through normal hook review. Desktop chat creation and project selection are not automated by this option. A new chat opened under the memory-product project still belongs to that project.
 
-The command finds that conversation in Antigravity's local index, determines its workspace and repository, imports its existing user and assistant text, and installs a Codex MCP connection and capture/recall hooks in that workspace. It binds the destination to the selected conversation so an unrelated branch's memory does not replace the handoff. It works with existing history even if hooks were not installed when the source conversation began. If the source agent is quota-blocked, importing its readable local history does not require another model response.
+The command finds that conversation in Antigravity's local index, determines its workspace and repository, imports its existing user and assistant text, and installs a Codex MCP connection and capture/recall hooks in that workspace. The project connection is shared, while each Codex session has its own selected conversation. Starting another continuation in the same repository does not replace the first session's selection. It works with existing history even if hooks were not installed when the source conversation began. If the source agent is quota-blocked, importing its readable local history does not require another model response.
 
-Open the identified workspace in Codex, review the generated project hooks if prompted, then start a fresh chat and say **Continue the task from the imported Antigravity conversation.** The startup hook directs Codex to retrieve the saved context. Existing code and branch state still need to be checked before continuing implementation.
+In a fresh Codex chat in a connected project, ask **Show me the chats I can continue.** The startup hook directs the agent to call `choose_conversation` with the native session ID. Clients supporting MCP form elicitation show a user selection form containing that project's chat titles, folders and activity. The user must accept a choice before history is imported or bound. Cancelling does not choose a chat. Clients without MCP form support receive a message directing them to the terminal picker. The desktop form's visual rendering has not been independently tested in this development environment.
+
+Once selected, `get_context`, `search_memory`, `get_evidence` and `save_memory` require the matching native `sessionId`. The hook supplies it automatically to the agent. A new session starts unselected, while a resumed session keeps its choice. Capture is skipped until that session has a selected chat. Repository and branch state still need to be checked before continuing implementation.
 
 Installed hooks record `MEMORY_WORKSPACE` and compare the current Git repository with the configured destination before capture or recall. Linked worktrees of that same repository are allowed. A mismatch returns a visible handoff warning without recalling or capturing context. The startup instruction tells the agent to report a different required checkout before editing there.
 

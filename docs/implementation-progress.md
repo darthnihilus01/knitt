@@ -55,3 +55,15 @@ Added mandatory MEMORY_REPO binding for all MCP tools, optional feature binding 
 Added --launch to execute Codex CLI with the destination directory explicitly selected. Desktop project/chat routing remains pending. This fix restricts memory access and clarifies routing; the coding client's own tools and filesystem permissions remain outside the memory server's control.
 
 Regression tests first reproduced both cross-repository retrieval and wrong-workspace recall, then passed after the fix. The complete suite now has 24 passing tests, with TypeScript checks passing.
+
+## Explicit user chat selection
+
+Added an interactive terminal picker with numbered choices, search, paging and cancellation. Handoff without --conversation now opens that picker. Explicit title/ID arguments remain available for scripts. The user chooses before import.
+
+Added the choose_conversation MCP tool using protocol form elicitation. It shows title, workspace and activity for matching local chats, waits for user acceptance, then imports the selected history. Unsupported hosts receive a terminal-picker fallback. The protocol is tested with an actual SDK client/server exchange; desktop form rendering remains unverified.
+
+Selections are now stored by repository and native coding session, rather than in the repository's fixed feature configuration. Native startup asks for a user choice when continuing a previous chat, and all memory tools enforce that session's chosen feature. CLI launch carries its explicit user choice into that new session. Cancellation leaves new sessions unselected. Choosing a different chat in another session does not overwrite the first.
+
+Updated the installed Weave connection to session-selection mode and removed its repository-wide fixed conversation. Updated hooks require native review when a fresh session loads them. General legacy fixed-feature developer connections remain supported.
+
+Verified picker cancellation/search, independent session state, process-specific launch choices, native MCP form acceptance/cancellation, startup binding and cross-session isolation. Source history remains local.

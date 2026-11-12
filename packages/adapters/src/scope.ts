@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import type { Scope } from "./hooks.ts";
 
-export function resolveScope(payload: Record<string, unknown>, env: NodeJS.ProcessEnv = process.env): Scope {
+export function resolveConnection(payload: Record<string, unknown>, env: NodeJS.ProcessEnv = process.env) {
   const repoId = env.MEMORY_REPO;
   if (!repoId) throw new Error("Set MEMORY_REPO for the connected repository");
   const workspacePaths = payload.workspacePaths;
@@ -16,6 +16,11 @@ export function resolveScope(payload: Record<string, unknown>, env: NodeJS.Proce
       throw new Error("Wrong workspace. Open " + env.MEMORY_WORKSPACE + " to continue this handoff. No memory was recalled or captured.");
     }
   }
+  return { repoId, workspace };
+}
+
+export function resolveScope(payload: Record<string, unknown>, env: NodeJS.ProcessEnv = process.env): Scope {
+  const { repoId, workspace } = resolveConnection(payload, env);
   let branch = env.MEMORY_BRANCH;
   if (!branch && !env.MEMORY_FEATURE) {
     branch = execFileSync("git", ["branch", "--show-current"], {

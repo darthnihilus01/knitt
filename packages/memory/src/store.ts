@@ -16,6 +16,10 @@ export class MemoryStore {
         UNIQUE(repo, id)
       );
       CREATE INDEX IF NOT EXISTS events_scope ON events(repo, feature, seq);
+      CREATE TABLE IF NOT EXISTS session_selections (
+        repo TEXT NOT NULL, session TEXT NOT NULL, feature TEXT NOT NULL, title TEXT NOT NULL,
+        PRIMARY KEY(repo, session)
+      );
     `);
   }
   save(input: unknown): StoredEvent {
@@ -64,6 +68,15 @@ export class MemoryStore {
       return { ...metadata, receivedAt: String(row.received), excerpt: content.slice(start, start + 1000) };
     });
     return { matches, nextCursor: rows.length > scope.limit ? Number(selected[selected.length - 1].seq) : null };
+  }
+  selectSession(repoId: string, sessionId: string, featureId: string, title: string) {
+    if (!repoId || !sessionId || !featureId) throw new Error("Repository, session and selected feature are required");
+    this.db.prepare("INSERT INTO session_selections VALUES(?,?,?,?) ON CONFLICT(repo,session) DO UPDATE SET feature=excluded.feature,title=excluded.title")
+      .run(repoId, sessionId, featureId, title);
+  }
+  sessionSelection(repoId: string, sessionId: string) {
+    const row = this.db.prepare("SELECT feature,title FROM session_selections WHERE repo=? AND session=?").get(repoId, sessionId);
+    return row ? { featureId: String(row.feature), title: String(row.title) } : null;
   }
   close() { this.db.close(); }
 }

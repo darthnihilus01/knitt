@@ -1,8 +1,8 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { capture, flush, recallInstruction } from "./hooks.ts";
+import { capture, flush, recallInstruction, selectionInstruction } from "./hooks.ts";
 import type { ClientName } from "./hooks.ts";
-import { resolveScope } from "./scope.ts";
+import { resolveScope, resolveConnection } from "./scope.ts";
 import { captureTranscript } from "./transcript.ts";
 import { MemoryStore } from "../../memory/src/store.ts";
 
@@ -25,9 +25,33 @@ try {
       payload = parsed;
     }
   }
-  const scope = resolveScope(payload);
+  let scope;
+  let selectedSessionId: string | undefined;
+  if (process.env.MEMORY_SESSION_SELECTION === "1" && action !== "flush") {
+    const { repoId, workspace } = resolveConnection(payload);
+    const sessionId = payload.session_id ?? payload.conversationId;
+    if (typeof sessionId !== "string" || !sessionId) throw new Error("A native session ID is required for chat selection");
+    selectedSessionId = sessionId;
+    const path = process.env.MEMORY_DB ?? resolve(".memory/events.sqlite");
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+    const store = new MemoryStore(path);
+    let selection;
+    try {
+      selection = store.sessionSelection(repoId, sessionId);
+      if (!selection && process.env.MEMORY_LAUNCH_FEATURE) {
+        store.selectSession(repoId, sessionId, process.env.MEMORY_LAUNCH_FEATURE, process.env.MEMORY_LAUNCH_TITLE ?? "Selected chat");
+        selection = store.sessionSelection(repoId, sessionId);
+      }
+    } finally { store.close(); }
+    if (!selection) {
+      if (action === "recall") console.log(JSON.stringify(selectionInstruction(client as ClientName, repoId, sessionId, workspace)));
+      else { console.error("Shared memory: no chat selected for this session; capture skipped"); console.log("{}"); }
+      process.exit(0);
+    }
+    scope = { repoId, featureId: selection.featureId };
+  } else scope = resolveScope(payload);
   if (action === "recall") {
-    console.log(JSON.stringify(recallInstruction(client as ClientName, scope, process.env.MEMORY_WORKSPACE)));
+    console.log(JSON.stringify(recallInstruction(client as ClientName, scope, process.env.MEMORY_WORKSPACE, selectedSessionId)));
   } else if (action === "capture" || action === "flush") {
     const directory = process.env.MEMORY_QUEUE ?? resolve(".memory/queue");
     if (action === "capture") {

@@ -1,3 +1,5 @@
+import { createInterface } from "node:readline/promises";
+import { pickConversation } from "./picker.ts";
 import { parseArgs } from "node:util";
 import { homedir } from "node:os";
 import { join, resolve, dirname } from "node:path";
@@ -9,7 +11,7 @@ import { findConversations, selectConversation, importConversation } from "./han
 import { MemoryStore } from "../../memory/src/store.ts";
 import { codexLaunch, displayCommand } from "./launch.ts";
 
-function main() {
+async function main() {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
@@ -29,8 +31,15 @@ function main() {
     console.log(JSON.stringify(conversations.map(({ id, title, workspace, modified }) => ({ id, title, workspace, modified })), null, 2));
     return;
   }
-  if (!values.conversation) throw new Error("Choose a conversation by its title or ID");
-  const conversation = selectConversation(conversations, values.conversation);
+  let conversation;
+  if (values.conversation) conversation = selectConversation(conversations, values.conversation);
+  else {
+    if (!process.stdin.isTTY) throw new Error("User selection required. Run handoff interactively to open the chat picker, or pass an explicit --conversation.");
+    const reader = createInterface({ input: process.stdin, output: process.stdout });
+    try { conversation = await pickConversation(conversations, { ask: prompt => reader.question(prompt), write: text => { process.stdout.write(text); } }); }
+    finally { reader.close(); }
+    if (!conversation) { console.log("Cancelled. No chat imported or selected."); return; }
+  }
   const workspace = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: conversation.workspace, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   let repoId: string;
   try {
@@ -42,7 +51,11 @@ function main() {
   const app = resolve(fileURLToPath(new URL("../../../", import.meta.url)));
   const database = process.env.MEMORY_DB ?? join(app, ".memory/events.sqlite");
   const featureId = "antigravity:" + conversation.id;
-  const launch = codexLaunch(workspace);
+  const launch = codexLaunch(workspace, { featureId, title: conversation.title });
+  const destinationCommand = displayCommand("env", [
+    ...Object.entries(launch.env).map(([name, value]) => name + "=" + value),
+    launch.command, ...launch.args,
+  ]);
   if (values.preview) {
     console.log(JSON.stringify({ action, title: conversation.title, workspace, repoId, featureId, destination: "codex", database, changesApplied: false }, null, 2));
     return;
@@ -59,20 +72,20 @@ function main() {
   // The destination feature binding is installed only after the history has been saved.
   execFileSync("python3", [
     join(app, "scripts/connect.py"), "--workspace", workspace, "--app-root", app,
-    "--node", process.execPath, "--repo-id", repoId, "--feature-id", featureId,
+    "--node", process.execPath, "--repo-id", repoId, "--session-selection",
     "--database", database, "--client", "codex", "--apply",
   ], { stdio: ["ignore", "inherit", "inherit"] });
-  console.log(JSON.stringify({ title: conversation.title, workspace, repoId, ...report, ready: true, destinationCommand: displayCommand(launch.command, launch.args) }, null, 2));
+  console.log(JSON.stringify({ title: conversation.title, workspace, repoId, ...report, ready: true, destinationCommand }, null, 2));
   if (values.launch) {
-    execFileSync(launch.command, launch.args, { cwd: workspace, stdio: "inherit" });
+    execFileSync(launch.command, launch.args, { cwd: workspace, stdio: "inherit", env: { ...process.env, ...launch.env } });
   } else {
     console.log("Continue in the destination workspace with this command, or rerun handoff with --launch:");
-    console.log(displayCommand(launch.command, launch.args));
+    console.log(destinationCommand);
     console.log("Starting a chat in the memory-product project does not switch it to the destination workspace.");
   }
 }
 
-try { main(); }
+try { await main(); }
 catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

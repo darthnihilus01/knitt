@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { resolve, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,18 @@ function workspaces(value: string): string[] {
 
 export function findConversations(roots: string[], workspace?: string): Conversation[] {
   const found = new Map<string, Conversation>();
+  const repositories = new Map<string, string | null>();
+  const commonDirectory = (path: string) => {
+    if (!repositories.has(path)) {
+      try {
+        repositories.set(path, execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+          cwd: path, encoding: "utf8", timeout: 1000, stdio: ["ignore", "pipe", "ignore"],
+        }).trim());
+      } catch { repositories.set(path, null); }
+    }
+    return repositories.get(path);
+  };
+  const expectedRepository = workspace ? commonDirectory(workspace) : null;
   for (const root of roots) {
     const path = join(root, "conversation_summaries.db");
     if (!existsSync(path)) continue;
@@ -30,7 +43,7 @@ export function findConversations(roots: string[], workspace?: string): Conversa
         const id = String(row.conversation_id);
         if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) continue;
         for (const directory of workspaces(String(row.workspace_uris))) {
-          if (workspace && resolve(directory) !== resolve(workspace)) continue;
+          if (workspace && resolve(directory) !== resolve(workspace) && (!expectedRepository || commonDirectory(directory) !== expectedRepository)) continue;
           const conversation = { id, title: String(row.title), workspace: directory, root, modified: String(row.last_modified_time) };
           const key = id + ":" + directory;
           const previous = found.get(key);

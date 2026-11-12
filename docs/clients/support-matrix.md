@@ -2,9 +2,10 @@
 
 | Client | MCP path | Capture and recall | Local evidence |
 |---|---|---|---|
-| Claude Desktop, Chat | Remote custom connector | Tool-based save and retrieval. No per-turn callback established in the Chat connector documentation. | No Desktop binary identified on PATH. Live handoff untested. |
+| Claude Desktop, Chat | Generated local stdio fragment or authenticated remote HTTP | Tool-based save/retrieval, explicit session and picker. No passive per-turn capture. | Local fragment generated; application handoff untested. |
+| ChatGPT / Claude web | OAuth Streamable HTTP | Browser picker fallback and scoped checkpoint tools. | Gateway integration-tested; public deployment and OAuth setup pending. |
 | Claude Desktop, local Code session | Claude Code integration | Candidate: Stop hook for capture, SessionStart for recall. Verify both on the desktop build and record trust settings. | Desktop runtime untested. |
-| Claude Code CLI | Explicit MCP configuration | Stop provides session ID, transcript path and final message. Derive repository and branch from hook cwd in an opted-in checkout. | Version 2.1.322 and MCP configuration switches observed. Hook behavior documented. |
+| Claude Code CLI | Explicit MCP configuration | Stop provides session ID, transcript path and final message. Derive repository and branch from hook cwd in an opted-in checkout. | Version 2.1.322 recognizes installed project MCP configuration. Login and MCP approval pending; installer merges hooks and skill in tests. |
 | Codex desktop | Plugin with trusted hooks | SessionStart can direct the agent to retrieve the briefing through MCP. Keep teammate-authored text in tool results because hook additionalContext has developer authority. | Desktop handoff untested. |
 | Codex CLI | stdio or Streamable HTTP; HTTP bearer token can come from an environment variable | Same proposed startup recall as desktop. Validate capture separately before advertising reverse handoff. | Bundled CLI 0.167.0-alpha.3.2 reports stable hooks enabled and both MCP transports in help. |
 

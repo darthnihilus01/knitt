@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { findConversations, selectConversation, importConversation } from "./handoff.ts";
 import { MemoryStore } from "../../memory/src/store.ts";
+import { resolveRepository } from "./repository.ts";
 import { codexLaunch, displayCommand } from "./launch.ts";
 
 async function main() {
@@ -40,14 +41,7 @@ async function main() {
     finally { reader.close(); }
     if (!conversation) { console.log("Cancelled. No chat imported or selected."); return; }
   }
-  const workspace = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: conversation.workspace, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-  let repoId: string;
-  try {
-    const remote = execFileSync("git", ["remote", "get-url", "origin"], { cwd: workspace, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-    const ssh = remote.match(/^[^@]+@([^:]+):(.+)$/);
-    const url = ssh ? new URL("https://" + ssh[1] + "/" + ssh[2]) : new URL(remote);
-    repoId = (url.hostname + url.pathname).replace(/\.git$/, "").replace(/\/$/, "");
-  } catch { repoId = "local:" + createHash("sha256").update(workspace).digest("hex"); }
+  const { workspace, repoId } = resolveRepository(conversation.workspace);
   const app = resolve(fileURLToPath(new URL("../../../", import.meta.url)));
   const database = process.env.MEMORY_DB ?? join(app, ".memory/events.sqlite");
   const featureId = "antigravity:" + conversation.id;

@@ -71,3 +71,10 @@ Verified picker cancellation/search, independent session state, process-specific
 ## Slash-menu shortcut
 
 Added the continue-chat skill and included it in Codex connection installation. Installed it in the connected Weave project. The short skill dispatches to the native user picker and loads the accepted selection without authorizing file edits. It avoids typing a full request but remains model-driven, so token-free behavior is not claimed. Skill validation, TypeScript checks and all 30 tests pass. Desktop menu rendering remains unverified.
+
+
+## Connector setup · 2026-11-12
+
+Added Claude Code configuration merging and a Claude Desktop local configuration fragment. Added OAuth-protected Streamable HTTP, owned chat sessions, read/write scopes, browser conversation picker and private setup profiles for ChatGPT/Claude web. External JWT/OIDC authentication is required; no authorization server is implemented. Local SQLite remains the persistence layer.
+
+Validation: 38 tests pass and TypeScript checking passes. Claude Code recognizes the installed project server, pending login/approval. Remote clients remain unconnected until public HTTPS, issuer and allowed subject values are configured. Desktop rendering and live web OAuth flows remain unverified. See [setup guide](clients/connector-setup.md).

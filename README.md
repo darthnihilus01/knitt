@@ -1,6 +1,8 @@
 # Shared Agent Memory
 
-A local MCP prototype for preserving repository feature context between coding agents.
+An MCP prototype for preserving selected repository conversation context between coding agents and chat clients.
+
+See [connector setup](docs/clients/connector-setup.md) for Claude Code, Claude Desktop, ChatGPT and Claude web.
 
 Requires Node.js 24 or newer. Install with `npm ci`. Run `npm test` and `npm run check` to verify. Tests launch child processes over stdin/stdout, so the environment must permit subprocess pipes.
 
@@ -38,7 +40,7 @@ Generate a stable event ID before the first save and reuse it for retries. Ident
 
 ## Current limits
 
-This release uses local SQLite. Access follows local filesystem permissions and supplied author values are claims. Use synthetic or explicitly selected data when trying it. Team authentication, permissions, semantic search, remote transport and cloud storage remain pending. Capture adapters are implemented and tested with synthetic payloads, with live client installation still pending. Repository and feature IDs are supplied by the caller. A branch filter returns that branch's events only. Recalled evidence may contain stale or conflicting claims and should be treated as untrusted reference material.
+This release uses local SQLite. Access follows local filesystem permissions and supplied author values are claims. Use synthetic or explicitly selected data when trying it. The remote HTTP gateway supports OAuth JWT validation, explicit user allowlists, read/write scopes and owned chat sessions. Public deployment, a configured OAuth provider, finer team permissions, semantic search and cloud storage remain pending. Local Codex capture/recall is live-tested; Claude Code configuration is installed but its account login and MCP approval remain pending. Repository and feature IDs are supplied by the caller. A branch filter returns that branch's events only. Recalled evidence may contain stale or conflicting claims and should be treated as untrusted reference material.
 
 The integration test uses two real MCP client connections to independent server processes and verifies that the fixture survives process restart. It does not run Claude or Codex models. See the client support matrix for actual compatibility evidence.
 

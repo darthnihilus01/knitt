@@ -42,3 +42,11 @@ test("recall supplies a fixed MCP instruction without promoting stored content",
   assert.ok(JSON.stringify(output).includes("get_context"));
   assert.ok(JSON.stringify(output).includes("untrusted"));
 });
+
+test("temporary browser picker capabilities are redacted from captured text", async () => {
+  const { redact } = await import("../packages/adapters/src/hooks.ts");
+  const secret = "a".repeat(43);
+  const result = redact("Choose at https://memory.example/pick#" + secret);
+  assert.ok(!result.includes(secret));
+  assert.ok(result.includes("[REDACTED]"));
+});

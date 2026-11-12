@@ -16,6 +16,10 @@ export class MemoryStore {
         UNIQUE(repo, id)
       );
       CREATE INDEX IF NOT EXISTS events_scope ON events(repo, feature, seq);
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        repo TEXT NOT NULL, session TEXT NOT NULL, owner TEXT NOT NULL,
+        PRIMARY KEY(repo, session)
+      );
       CREATE TABLE IF NOT EXISTS session_selections (
         repo TEXT NOT NULL, session TEXT NOT NULL, feature TEXT NOT NULL, title TEXT NOT NULL,
         PRIMARY KEY(repo, session)
@@ -68,6 +72,12 @@ export class MemoryStore {
       return { ...metadata, receivedAt: String(row.received), excerpt: content.slice(start, start + 1000) };
     });
     return { matches, nextCursor: rows.length > scope.limit ? Number(selected[selected.length - 1].seq) : null };
+  }
+  createChatSession(repoId: string, sessionId: string, owner: string) {
+    this.db.prepare("INSERT INTO chat_sessions VALUES(?,?,?)").run(repoId, sessionId, owner);
+  }
+  ownsChatSession(repoId: string, sessionId: string, owner: string) {
+    return !!this.db.prepare("SELECT 1 FROM chat_sessions WHERE repo=? AND session=? AND owner=?").get(repoId, sessionId, owner);
   }
   selectSession(repoId: string, sessionId: string, featureId: string, title: string) {
     if (!repoId || !sessionId || !featureId) throw new Error("Repository, session and selected feature are required");

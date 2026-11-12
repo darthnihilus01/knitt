@@ -1,5 +1,6 @@
 """Prepare or apply repository-scoped Antigravity and Codex connections."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,7 @@ parser.add_argument("--app-root", type=Path, default=Path(__file__).resolve().pa
 parser.add_argument("--node", required=True)
 parser.add_argument("--repo-id", required=True)
 parser.add_argument("--apply", action="store_true")
-parser.add_argument("--client", choices=["both", "codex", "antigravity"], default="both")
+parser.add_argument("--client", choices=["both", "codex", "antigravity", "claude-code", "claude-desktop"], default="both")
 parser.add_argument("--feature-id")
 parser.add_argument("--session-selection", action="store_true")
 parser.add_argument("--database", type=Path)
@@ -122,6 +123,42 @@ try:
         tomllib.loads(new_toml)
         changes[".codex/config.toml"] = new_toml
 
+    if args.client == "claude-code":
+        mcp = json_file(".mcp.json")
+        servers = mcp.setdefault("mcpServers", {})
+        if "shared-memory" in servers and servers["shared-memory"].get("args") != [server]:
+            raise ValueError("An unrelated Claude shared-memory server already exists")
+        servers["shared-memory"] = {
+            "command": node, "args": [server],
+            "env": {"MEMORY_DB": database, "MEMORY_REPO": args.repo_id, "MEMORY_WORKSPACE": str(workspace),
+                    **({"MEMORY_SESSION_SELECTION": "1"} if args.session_selection else {}),
+                    **({"MEMORY_FEATURE": args.feature_id} if args.feature_id else {})},
+        }
+        changes[".mcp.json"] = dump(mcp)
+        settings = json_file(".claude/settings.local.json")
+        hooks = settings.setdefault("hooks", {})
+        for event, action in [("SessionStart", "recall"), ("Stop", "capture")]:
+            groups = []
+            for group in hooks.get(event, []):
+                remaining = [h for h in group.get("hooks", []) if not is_ours(h)]
+                if remaining:
+                    groups.append({**group, "hooks": remaining})
+            groups.append({"hooks": [handler("claude", action)]})
+            hooks[event] = groups
+        changes[".claude/settings.local.json"] = dump(settings)
+        skill_path = ".claude/skills/continue-chat/SKILL.md"
+        if existing(skill_path) and "<!-- shared-agent-memory -->" not in existing(skill_path):
+            raise ValueError("An unrelated Claude continue-chat skill already exists")
+        changes[skill_path] = (app / "skills/continue-chat/SKILL.md").read_text()
+
+    if args.client == "claude-desktop":
+        name = "shared-memory-" + hashlib.sha256(args.repo_id.encode()).hexdigest()[:8]
+        changes[".memory/connectors/claude-desktop.json"] = dump({"mcpServers": {name: {
+            "command": node, "args": [server],
+            "env": {"MEMORY_DB": database, "MEMORY_REPO": args.repo_id, "MEMORY_WORKSPACE": str(workspace),
+                    "MEMORY_SESSION_SELECTION": "1", "MEMORY_CHAT_CLIENT": "claude-desktop"},
+        }}})
+
     for relative, content in changes.items():
         print(("update " if existing(relative) != content else "unchanged ") + str(workspace / relative))
     if args.apply:
@@ -153,7 +190,7 @@ try:
                 else:
                     path.write_text(before[relative])
             raise
-        git_dir = subprocess.run(["git", "-C", str(workspace), "rev-parse", "--absolute-git-dir"], capture_output=True, text=True)
+        git_dir = subprocess.run(["git", "-C", str(workspace), "rev-parse", "--path-format=absolute", "--git-common-dir"], capture_output=True, text=True)
         if git_dir.returncode == 0:
             exclude = Path(git_dir.stdout.strip()) / "info/exclude"
             exclude.parent.mkdir(exist_ok=True)
@@ -163,7 +200,12 @@ try:
             if additions:
                 with exclude.open("a") as f:
                     f.write("\n# Local shared-agent-memory connection\n" + "\n".join(additions) + "\n")
-        print("Installed. Review Codex hooks in /hooks or Settings > Hooks. Start fresh agent sessions.")
+        if args.client == "claude-code":
+            print("Installed. Start a fresh Claude Code session and approve its project MCP connection.")
+        elif args.client == "claude-desktop":
+            print("Prepared the local Claude Desktop config fragment. Merge it into the desktop MCP configuration and restart the app.")
+        else:
+            print("Installed. Review Codex hooks in /hooks or Settings > Hooks. Start fresh agent sessions.")
     else:
         print("Preview only. Add --apply to install these repository-scoped entries.")
 except (ValueError, OSError, TypeError, KeyError) as error:

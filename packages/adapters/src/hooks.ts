@@ -17,6 +17,7 @@ export function openQueue(directory: string) {
 
 export function redact(text: string): string {
   return text
+    .replace(/https?:\/\/[^\s"\x27<>]+\/pick#[A-Za-z0-9_-]{32,}/g, url => url.slice(0, url.indexOf("#") + 1) + "[REDACTED]")
     .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g, "[REDACTED PRIVATE KEY]")
     .replace(/\b(api[_-]?key|token|password|secret)\s*[:=]\s*["']?[^\s"']+/gi, "$1=[REDACTED]")
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]");

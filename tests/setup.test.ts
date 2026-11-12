@@ -77,3 +77,40 @@ test("handoff launch pins Codex to the destination instead of the caller's works
   assert.equal(launch.args[launch.args.indexOf("--cd") + 1], "/target/project with spaces");
   assert.ok(launch.args.at(-1)?.includes("Verify this repository"));
 });
+
+test("Claude Code setup merges MCP, hooks and slash skill without changing existing tools", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "claude-connect-"));
+  try {
+    mkdirSync(join(workspace, ".claude"));
+    writeFileSync(join(workspace, ".mcp.json"), '{"mcpServers":{"existing":{"command":"keep"}}}');
+    writeFileSync(join(workspace, ".claude/settings.local.json"), '{"permissions":{"allow":["Read"]},"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo keep"}]}]}}');
+    const result = spawnSync("python3", [
+      resolve("scripts/connect.py"), "--workspace", workspace, "--node", process.execPath,
+      "--repo-id", "repo", "--client", "claude-code", "--session-selection", "--apply",
+    ], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    const mcp = JSON.parse(readFileSync(join(workspace, ".mcp.json"), "utf8"));
+    assert.equal(mcp.mcpServers.existing.command, "keep");
+    assert.equal(mcp.mcpServers["shared-memory"].env.MEMORY_REPO, "repo");
+    const settings = JSON.parse(readFileSync(join(workspace, ".claude/settings.local.json"), "utf8"));
+    assert.deepEqual(settings.permissions.allow, ["Read"]);
+    assert.equal(settings.hooks.Stop.length, 2);
+    assert.ok(readFileSync(join(workspace, ".claude/skills/continue-chat/SKILL.md"), "utf8").includes("choose_conversation"));
+  } finally { rmSync(workspace, { recursive: true, force: true }); }
+});
+
+test("generated connector files stay excluded in linked Git worktrees", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const root = mkdtempSync(join(tmpdir(), "connector-ignore-"));
+  const main = join(root, "main");
+  const worktree = join(root, "feature");
+  try {
+    execFileSync("git", ["init", "--initial-branch=main", main], { stdio: "ignore" });
+    execFileSync("git", ["-C", main, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"], { stdio: "ignore" });
+    execFileSync("git", ["-C", main, "worktree", "add", "-b", "feature", worktree], { stdio: "ignore" });
+    const result = spawnSync("python3", [resolve("scripts/connect.py"), "--client", "claude-code",
+      "--workspace", worktree, "--node", process.execPath, "--repo-id", "repo", "--session-selection", "--apply"], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(spawnSync("git", ["-C", worktree, "check-ignore", ".mcp.json"], { encoding: "utf8" }).status, 0);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

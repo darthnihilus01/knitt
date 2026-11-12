@@ -67,3 +67,7 @@ Selections are now stored by repository and native coding session, rather than i
 Updated the installed Weave connection to session-selection mode and removed its repository-wide fixed conversation. Updated hooks require native review when a fresh session loads them. General legacy fixed-feature developer connections remain supported.
 
 Verified picker cancellation/search, independent session state, process-specific launch choices, native MCP form acceptance/cancellation, startup binding and cross-session isolation. Source history remains local.
+
+## Slash-menu shortcut
+
+Added the continue-chat skill and included it in Codex connection installation. Installed it in the connected Weave project. The short skill dispatches to the native user picker and loads the accepted selection without authorizing file edits. It avoids typing a full request but remains model-driven, so token-free behavior is not claimed. Skill validation, TypeScript checks and all 30 tests pass. Desktop menu rendering remains unverified.

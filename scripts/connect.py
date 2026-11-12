@@ -81,6 +81,12 @@ try:
         changes[".agents/mcp_config.json"] = dump(mcp)
 
     if args.client in ["both", "codex"]:
+        skill_path = ".agents/skills/continue-chat/SKILL.md"
+        skill_text = (app / "skills/continue-chat/SKILL.md").read_text()
+        current_skill = existing(skill_path)
+        if current_skill and "<!-- shared-agent-memory -->" not in current_skill:
+            raise ValueError("An unrelated continue-chat skill already exists")
+        changes[skill_path] = skill_text
         codex = json_file(".codex/hooks.json")
         hooks = codex.setdefault("hooks", {})
         for event, action in [("SessionStart", "recall"), ("Stop", "capture")]:
@@ -133,7 +139,7 @@ try:
                 if before[relative] == content:
                     continue
                 path = workspace / relative
-                path.parent.mkdir(exist_ok=True)
+                path.parent.mkdir(parents=True, exist_ok=True)
                 temporary = path.with_suffix(path.suffix + ".shared-memory-tmp")
                 temporary.write_text(content)
                 os.chmod(temporary, 0o600)

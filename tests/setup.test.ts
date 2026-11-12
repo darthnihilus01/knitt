@@ -31,6 +31,9 @@ test("connection install preserves settings, backs up changes, and is repeatable
     const cx = JSON.parse(before);
     assert.equal(cx.hooks.Stop.length, 2);
     assert.ok(existsSync(join(workspace, ".memory/connection-backup.json")));
+    const command = readFileSync(join(workspace, ".agents/skills/continue-chat/SKILL.md"), "utf8");
+    assert.ok(command.includes("name: continue-chat"));
+    assert.ok(command.includes("choose_conversation"));
   } finally { rmSync(workspace, { recursive: true, force: true }); }
 });
 

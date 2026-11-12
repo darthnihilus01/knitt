@@ -111,3 +111,7 @@ Use `--preview` to see the selected workspace and destination before applying ch
 The command currently supports local Antigravity-to-Codex handoffs. Private history, database files, backups and machine-specific client settings stay outside source control. Installed history is scoped by repository and selected conversation. Re-running the command imports newly available text without duplicating existing evidence.
 
 Verified with an existing Antigravity conversation: the command imported 55 records, installed the destination connection, and a fresh Codex session successfully called `get_context` and recovered the last completed milestone and outstanding task without reading repository files or receiving a pasted summary. The live source generation test remains quota-blocked, while historical conversation transfer is verified.
+
+## Slash-menu shortcut
+
+The connector installer now includes the continue-chat skill. In a fresh connected project chat, type / and select continue-chat, or invoke $continue-chat. It calls the user picker, loads the chosen context and shows a short checkpoint without editing files. Skill-based commands still start a model turn and consume tokens. The local terminal picker itself uses no model until a continuation is launched. Menu discovery follows the client's skill support and requires a fresh session after installation.

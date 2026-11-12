@@ -6,3 +6,7 @@ node_modules/
 .agents/mcp_config.json
 .codex/hooks.json
 .codex/config.toml
+
+# Generated package output
+dist/
+*.tgz

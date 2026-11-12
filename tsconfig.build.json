@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": false
+  },
+  "include": ["apps/**/*.ts", "packages/**/*.ts", "scripts/connector-setup.ts"],
+  "exclude": ["tests", "dist", "node_modules"]
+}

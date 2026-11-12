@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { planConnection, applyConnectionPlan } from "../packages/installer/src/connections.ts";
 import { createHash } from "node:crypto";
 import { resolveRepository } from "../packages/adapters/src/repository.ts";
 
@@ -24,11 +24,9 @@ try {
   const app = resolve(fileURLToPath(new URL("../", import.meta.url)));
   const { workspace, repoId } = resolveRepository(resolve(values.workspace));
   if (client === "claude-code" || client === "claude-desktop") {
-    execFileSync("python3", [
-      join(app, "scripts/connect.py"), "--workspace", workspace, "--app-root", app,
-      "--node", process.execPath, "--repo-id", repoId, "--client", client, "--session-selection",
-      ...(!values.preview ? ["--apply"] : []),
-    ], { stdio: "inherit" });
+    const plan = planConnection({ workspace, appRoot: app, database: process.env.MEMORY_DB ?? join(app, ".memory/events.sqlite"), repoId, clients: [client] });
+    for (const path of Object.keys(plan.changes)) console.log("merge " + join(workspace, path));
+    if (!values.preview) applyConnectionPlan(plan);
     console.log(client === "claude-code"
       ? "Start a fresh Claude Code session in this workspace, approve its MCP connection if prompted, and use /continue-chat."
       : "Merge the generated .memory/connectors/claude-desktop.json entry into Claude Desktop's local MCP configuration, restart Claude Desktop, then call start_session and choose_conversation.");

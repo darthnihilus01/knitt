@@ -12,6 +12,7 @@ try {
   const packed = Array.isArray(report) ? report[0] : Object.values(report)[0] as any;
   const files = packed.files.map((f: any) => f.path) as string[];
   assert.ok(files.includes('dist/packages/installer/src/cli.js'));
+  assert.ok(files.includes('LICENSE'), 'Apache license missing from npm archive');
   assert.ok(files.includes('dist/skills/continue-chat/SKILL.md'));
   assert.ok(!files.some(p => /(^|\/)(\.memory|tests|node_modules)(\/|$)/.test(p) || /\.(sqlite|py|ts)$/.test(p)));
   for (const file of files) {

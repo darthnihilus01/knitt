@@ -4,7 +4,7 @@ Carry selected repository conversation context between coding agents. Choose the
 
 ## npm installation (release candidate)
 
-The npm CLI is being prepared for publication. **It is not published yet:** the selected package is `@tinchu0/knitt`, but publisher access and an open-source license still need confirmation. Until then, test the same distribution artifact locally:
+The npm CLI is being prepared for publication. **It is not published yet:** the selected package is `@tinchu0/knitt`, but publisher access still needs confirmation. Until then, test the same distribution artifact locally:
 
 ```bash
 npm ci
@@ -51,4 +51,8 @@ npm run test:package
 
 The legacy Python development installer remains available under `scripts/connect.py`. Published CLI setup and handoff installation use the Node-only planner.
 
-This repository remains a release candidate. Public release additionally requires publisher access confirmation, a license, a full-history/private-data audit and supported-platform evidence. No npm publication or repository visibility change is performed by building or packing.
+This repository remains a release candidate. Public release additionally requires publisher access confirmation, a full-history/private-data audit and supported-platform evidence. No npm publication or repository visibility change is performed by building or packing.
+
+## License
+
+Knitt is licensed under the [Apache License 2.0](LICENSE).

@@ -36,14 +36,16 @@
     "dist/",
     "README.md",
     "docs/clients/connector-setup.md",
-    "docs/clients/npm-installation.md"
+    "docs/clients/npm-installation.md",
+    "LICENSE"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/darthnihilus01/shared-agent-memory.git"
+    "url": "git+https://github.com/darthnihilus01/knitt.git"
   },
   "description": "Shared conversation memory for coding agents",
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "license": "Apache-2.0"
 }

@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { findConversations, selectConversation, importConversation } from "./handoff.ts";
 import { MemoryStore } from "../../memory/src/store.ts";
 import { resolveRepository } from "./repository.ts";
+import { planConnection, applyConnectionPlan } from "../../installer/src/connections.ts";
 import { codexLaunch, displayCommand } from "./launch.ts";
 
 async function main() {
@@ -64,11 +65,7 @@ async function main() {
     });
   } finally { store.close(); }
   // The destination feature binding is installed only after the history has been saved.
-  execFileSync("python3", [
-    join(app, "scripts/connect.py"), "--workspace", workspace, "--app-root", app,
-    "--node", process.execPath, "--repo-id", repoId, "--session-selection",
-    "--database", database, "--client", "codex", "--apply",
-  ], { stdio: ["ignore", "inherit", "inherit"] });
+  applyConnectionPlan(planConnection({ workspace, appRoot: app, database, repoId, clients: ["codex"] }));
   console.log(JSON.stringify({ title: conversation.title, workspace, repoId, ...report, ready: true, destinationCommand }, null, 2));
   if (values.launch) {
     execFileSync(launch.command, launch.args, { cwd: workspace, stdio: "inherit", env: { ...process.env, ...launch.env } });

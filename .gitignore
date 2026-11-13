@@ -10,3 +10,7 @@ node_modules/
 # Generated package output
 dist/
 *.tgz
+
+# Local Claude connector settings
+.mcp.json
+.claude/settings.local.json

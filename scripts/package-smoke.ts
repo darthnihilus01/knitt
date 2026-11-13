@@ -17,7 +17,7 @@ try {
   assert.ok(!files.some(p => /(^|\/)(\.memory|tests|node_modules)(\/|$)/.test(p) || /\.(sqlite|py|ts)$/.test(p)));
   for (const file of files) {
     const source = resolve(file);
-    if (existsSync(source)) assert.ok(!readFileSync(source, 'utf8').includes('/home/tinchu/'), 'Personal path in package: ' + file);
+    if (existsSync(source)) assert.ok(!/(?:\/home\/[^/\s]+\/|\/Users\/[^/\s]+\/)/.test(readFileSync(source, 'utf8')), 'Personal path in package: ' + file);
   }
   const archive = join(root, packed.filename), bootstrap = join(root, 'temporary bootstrap');
   const npxCache = join(root, 'temporary npx cache');

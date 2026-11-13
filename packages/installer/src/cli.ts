@@ -54,12 +54,12 @@ async function main() {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     workspace: { type: 'string' }, client: { type: 'string', multiple: true }, home: { type: 'string' },
     package: { type: 'string' }, yes: { type: 'boolean' }, preview: { type: 'boolean' },
-    version: { type: 'boolean' }, help: { type: 'boolean' },
+    'capture-new-sessions': { type: 'boolean' }, version: { type: 'boolean' }, help: { type: 'boolean' },
   } });
   if (values.version) { console.log(version); return; }
   const action = positionals[0];
   if (!action || values.help) {
-    console.log('Knitt ' + version + '\nCommands: setup, doctor, update, rollback, uninstall, serve\nOptions: --workspace PATH --client codex|claude-code|antigravity|claude-desktop (repeatable)\n         --preview --yes --home PATH --package TARBALL_OR_VERSION_SPEC\nSetup configures a persistent local runtime; remote/team service is configured separately.'); return;
+    console.log('Knitt ' + version + '\nCommands: setup, doctor, update, rollback, uninstall, serve\nOptions: --workspace PATH --client codex|claude-code|antigravity|claude-desktop (repeatable)\n         --capture-new-sessions --preview --yes --home PATH --package TARBALL_OR_VERSION_SPEC\nSetup configures a persistent local runtime; remote/team service is configured separately.'); return;
   }
   const home = resolve(values.home ?? defaultHome()), paths = runtimePaths(home);
   if (action === 'serve') {
@@ -94,7 +94,7 @@ async function main() {
     const directory = values.workspace ?? await ask('Project folder: ');
     const selected = values.client ?? (await ask('Agents (comma separated: ' + clients.join(', ') + '): ')).split(',').map(v => v.trim());
     const { workspace, repoId } = resolveRepository(resolve(directory));
-    project = { workspace, repoId, clients: selected, database: join(paths.data, 'events.sqlite') };
+    project = { workspace, repoId, clients: selected, database: join(paths.data, 'events.sqlite'), ...(values['capture-new-sessions'] ? { captureNewSessions: true } : {}) };
     // Validate and show changes before installing dependencies or writing settings.
     const plan = planConnection({ ...project, appRoot }); preview(plan);
     if (values.preview) { console.log('Preview only. No runtime or configuration installed.'); return; }
@@ -119,7 +119,10 @@ async function main() {
     }
     if (project) {
       const existing = state?.projects.find(p => p.workspace === project!.workspace);
-      if (existing) project.clients = [...new Set([...existing.clients, ...project.clients])];
+      if (existing) {
+        project.clients = [...new Set([...existing.clients, ...project.clients])];
+        if(existing.captureNewSessions)project.captureNewSessions=true;
+      }
     }
     const projects = project ? [...(state?.projects ?? []).filter(p => p.workspace !== project.workspace), project] : state!.projects;
     if (action !== 'rollback' && metadata.private && !values.package) throw new Error('This package is unpublished. Pass --package /absolute/path/to/the-built.tgz; registry installation is disabled until release.');

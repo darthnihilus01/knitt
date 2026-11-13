@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { atomicWrite, type ConnectionOptions } from './connections.ts';
 export const packageName = '@tinchu0/knitt';
 export type Runtime = { version: string; appRoot: string; node: string };
-export type Project = Pick<ConnectionOptions, 'workspace' | 'repoId' | 'clients' | 'database'>;
+export type Project = Pick<ConnectionOptions, 'workspace' | 'repoId' | 'clients' | 'database' | 'captureNewSessions'>;
 export type Installation = { schema: 1; current: Runtime; previous?: Runtime; projects: Project[] };
 export function defaultHome() {
   if (process.env.SHARED_MEMORY_HOME) return resolve(process.env.SHARED_MEMORY_HOME);

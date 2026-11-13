@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { capture, flush, recallInstruction, selectionInstruction } from "./hooks.ts";
@@ -27,7 +28,24 @@ try {
   }
   let scope;
   let selectedSessionId: string | undefined;
-  if (process.env.MEMORY_SESSION_SELECTION === "1" && action !== "flush") {
+  const conversationMode=process.env.MEMORY_CONVERSATION_MODE==="1";
+  if(conversationMode && action!=="flush") {
+    const {repoId,workspace}=resolveConnection(payload);
+    const nativeSessionId=payload.session_id??payload.conversationId;
+    if(typeof nativeSessionId!=="string"||!nativeSessionId)throw new Error("A native session ID is required");
+    selectedSessionId=nativeSessionId;
+    const path=process.env.MEMORY_DB??resolve(".memory/events.sqlite");mkdirSync(dirname(path),{recursive:true,mode:0o700});
+    const store=new MemoryStore(path,{conversationMode:true});
+    try {
+      if(process.env.MEMORY_CAPTURE_NEW_SESSIONS!=="1"&&!store.sessionSelection(repoId,nativeSessionId)) {
+        console.log(action==="recall"?JSON.stringify(selectionInstruction(client as ClientName,repoId,nativeSessionId,workspace)):"{}");process.exit(0);
+      }
+      const git=(args:string[])=>{try{return execFileSync("git",args,{cwd:workspace,encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim()||undefined;}catch{return undefined;}};
+      const branch=git(["symbolic-ref","--short","HEAD"]),commit=git(["rev-parse","HEAD"]);
+      const conversation=store.ensureSession({repoId,client,nativeSessionId},{workspace,branch,commit});
+      scope={repoId,featureId:conversation.conversationId,branch,commit};
+    }finally{store.close();}
+  } else if (process.env.MEMORY_SESSION_SELECTION === "1" && action !== "flush") {
     const { repoId, workspace } = resolveConnection(payload);
     const sessionId = payload.session_id ?? payload.conversationId;
     if (typeof sessionId !== "string" || !sessionId) throw new Error("A native session ID is required for chat selection");
@@ -69,8 +87,14 @@ try {
     const report = flush(directory, event => {
       const path = process.env.MEMORY_DB ?? resolve(".memory/events.sqlite");
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-      const store = new MemoryStore(path);
-      try { store.save(event); } finally { store.close(); }
+      const store = new MemoryStore(path,{conversationMode});
+      try {
+        if(conversationMode&&event.featureId.startsWith("conversation:")&&event.sessionId){
+          const eventClient=event.source?.split(":")[0];
+          if(!eventClient)throw new Error("Queued conversation event has no client");
+          store.appendEvidence({repoId:event.repoId,client:eventClient,nativeSessionId:event.sessionId},event);
+        }else store.save(event);
+      } finally { store.close(); }
     });
     console.error(JSON.stringify(report));
     console.log("{}");

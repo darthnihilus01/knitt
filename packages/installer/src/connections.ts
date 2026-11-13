@@ -9,7 +9,7 @@ const begin = '# BEGIN shared-agent-memory', end = '# END shared-agent-memory';
 const statePath = '.memory/npm-connection.json';
 type Snapshot = { before: string | null; after: string };
 type State = { schema: 1; files: Record<string, Snapshot> };
-export type ConnectionOptions = { workspace: string; appRoot: string; database: string; repoId: string; clients: string[]; node?: string };
+export type ConnectionOptions = { workspace: string; appRoot: string; database: string; repoId: string; clients: string[]; node?: string; captureNewSessions?: boolean };
 export type ConnectionPlan = { workspace: string; changes: Record<string, string | null>; expected: Record<string, string | null> };
 const read = (path: string) => existsSync(path) ? readFileSync(path, 'utf8') : null;
 const dump = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
@@ -69,20 +69,20 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
   const state = readConnectionState(workspace), changes: Record<string, string> = {}, expected: Record<string, string | null> = {};
   const get = (path: string) => { const content = read(join(workspace, path)); expected[path] = content; return content; };
   const json = (path: string) => { const v = JSON.parse(get(path) ?? '{}'); if (!object(v)) throw new Error(path + ' must be an object'); return v; };
-  const env = { MEMORY_DB: resolve(opts.database), MEMORY_REPO: opts.repoId, MEMORY_WORKSPACE: workspace, MEMORY_SESSION_SELECTION: '1' };
+  const env = { MEMORY_DB: resolve(opts.database), MEMORY_REPO: opts.repoId, MEMORY_WORKSPACE: workspace, MEMORY_SESSION_SELECTION: '1', ...(opts.captureNewSessions ? { MEMORY_CONVERSATION_MODE: '1', MEMORY_CAPTURE_NEW_SESSIONS: '1' } : {}) };
   const quote = (s: string) => "'" + s.replaceAll("'", "'\\''") + "'";
   const handler = (client: string, action: string) => ({ type: 'command', timeout: 10, command: ['env', ...Object.entries({ ...env, MEMORY_QUEUE: join(dirname(opts.database), 'queue', client), MEMORY_MANAGED: 'shared-agent-memory' }).map(([k,v]) => k + '=' + v), node, runner, action, client].map(quote).join(' ') });
-  const connection = (desktop = false) => ({ command: node, args: [server], env: { ...env, ...(desktop ? { MEMORY_CHAT_CLIENT: 'claude-desktop' } : {}) } });
+  const connection = (desktop = false, client = "claude") => ({ command: node, args: [server], env: { ...env, ...(opts.captureNewSessions ? { MEMORY_CLIENT: client } : {}), ...(desktop ? { MEMORY_CHAT_CLIENT: 'claude-desktop' } : {}) } });
   function owned(path: string, location: string[], current: any) {
     if (current === undefined) return;
     const prior = state.files[path];
     const previous = prior ? location.reduce((v, key) => v?.[key], JSON.parse(prior.after)) : undefined;
     if (!equal(current, previous)) throw new Error('Unmanaged or modified connector conflict in ' + path);
   }
-  function mcp(path: string, desktop = false) {
+  function mcp(path: string, desktop = false, client = "claude") {
     const value = json(path); value.mcpServers ??= {};
     owned(path, ['mcpServers', 'shared-memory'], value.mcpServers['shared-memory']);
-    value.mcpServers['shared-memory'] = connection(desktop); changes[path] = dump(value);
+    value.mcpServers['shared-memory'] = connection(desktop, client); changes[path] = dump(value);
   }
   function hooks(path: string, client: string) {
     const value = json(path); value.hooks ??= {};
@@ -109,7 +109,7 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
     if (client === 'claude-code') { mcp('.mcp.json'); hooks('.claude/settings.local.json', 'claude'); skill('.claude/skills/continue-chat/SKILL.md'); }
     if (client === 'claude-desktop') mcp('.memory/connectors/claude-desktop.json', true);
     if (client === 'antigravity') {
-      mcp('.agents/mcp_config.json');
+      mcp('.agents/mcp_config.json', false, 'antigravity');
       const path = '.agents/hooks.json', value = json(path);
       owned(path, ['shared-memory'], value['shared-memory']);
       value['shared-memory'] = { SessionStart: [handler('antigravity', 'recall')], Stop: [handler('antigravity', 'capture')] };
@@ -126,7 +126,7 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
         if (!previous || !previous.after.includes(block)) throw new Error('Modified or unmanaged Codex config conflict');
         base = current.replace(block, '');
       } else if ((parsed.mcp_servers as any)?.['shared-memory']) throw new Error('Unmanaged Codex server conflict');
-      changes[path] = base.trimEnd() + '\n\n' + begin + '\n[mcp_servers.shared-memory]\ndefault_tools_approval_mode = "writes"\ncommand = ' + JSON.stringify(node) + '\nargs = ' + JSON.stringify([server]) + '\ncwd = ' + JSON.stringify(workspace) + '\nenv = { ' + Object.entries(env).map(([k,v]) => k + ' = ' + JSON.stringify(v)).join(', ') + ' }\ntools.choose_conversation.approval_mode = "approve"\n' + end + '\n';
+      changes[path] = base.trimEnd() + '\n\n' + begin + '\n[mcp_servers.shared-memory]\ndefault_tools_approval_mode = "writes"\ncommand = ' + JSON.stringify(node) + '\nargs = ' + JSON.stringify([server]) + '\ncwd = ' + JSON.stringify(workspace) + '\nenv = { ' + Object.entries({ ...env, ...(opts.captureNewSessions ? { MEMORY_CLIENT: "codex" } : {}) }).map(([k,v]) => k + ' = ' + JSON.stringify(v)).join(', ') + ' }\ntools.choose_conversation.approval_mode = "approve"\n' + end + '\n';
       parseToml(changes[path]);
     }
   }

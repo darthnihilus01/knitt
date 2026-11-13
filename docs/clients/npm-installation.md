@@ -14,12 +14,12 @@ npm pack
 Then use the tarball (absolute paths work from any directory):
 
 ```bash
-npx --yes --package ./tinchu0-knitt-0.1.0.tgz knitt setup \
+npx --yes --package ./tinchu0-knitt-0.1.0-beta.1.tgz knitt setup \
   --workspace /path/to/project --client codex --client claude-code \
-  --package /absolute/path/to/tinchu0-knitt-0.1.0.tgz
+  --package /absolute/path/to/tinchu0-knitt-0.1.0-beta.1.tgz
 ```
 
-The outer `--package` tells npx which CLI to run. The `--package` after `setup` tells setup which exact artifact to install persistently. Before registry publication this second argument is required for applying setup; preview can run without it. While the package is private, applying setup/update without an explicit artifact is blocked to avoid fetching an unrelated registry package. After publication, omitting the internal package argument installs the CLI's exact published version. `update` defaults to the registry's latest version instead.
+The outer `--package` tells npx which CLI to run. The `--package` after `setup` tells setup which exact artifact to install persistently. Before registry publication this second argument is required for applying setup; preview can run without it. The release candidate is configured for registry publication; until it is published, pass the explicit tarball to setup/update. After publication, omitting the internal package argument installs the CLI's exact published version. `update` follows the `next` registry tag for prerelease CLIs and `latest` for stable CLIs.
 
 Use `--preview` to inspect changes without creating installation/configuration files. Interactive setup asks before applying; automation must pass `--yes`. Repeat `--client` for several agents. Setup requires Git repository metadata to derive a stable repository identity.
 
@@ -57,6 +57,6 @@ Uninstall restores unchanged managed values and preserves independent additions 
 
 ## Release gates
 
-The selected package is `@tinchu0/knitt`, owned by the intended npm account `tinchu0`. A registry lookup returned no public package on 2026-11-13; publisher access has not been verified. The repository still has `private: true` to prevent accidental registry publication. Knitt is licensed under Apache-2.0; the LICENSE file ships in the npm package. Native Windows setup deliberately fails rather than writing POSIX hook commands. Linux tarball checks are the current local verification target; macOS/Windows live client behavior remains unverified.
+The selected package is `@tinchu0/knitt`, owned by the intended npm account `tinchu0`. A registry lookup returned no public package on 2026-11-13; Terminal login as `tinchu0` is verified. Version `0.1.0-beta.1` is prepared with public access and the `next` tag; actual publication is still pending. Knitt is licensed under Apache-2.0; the LICENSE file ships in the npm package. Native Windows setup deliberately fails rather than writing POSIX hook commands. Linux tarball checks are the current local verification target; macOS/Windows live client behavior remains unverified.
 
 ChatGPT, Claude web and teammate machines require a separately reachable authenticated service. Packaging a CLI does not supply hosting, authentication accounts or background synchronization.

@@ -123,7 +123,7 @@ async function main() {
     }
     const projects = project ? [...(state?.projects ?? []).filter(p => p.workspace !== project.workspace), project] : state!.projects;
     if (action !== 'rollback' && metadata.private && !values.package) throw new Error('This package is unpublished. Pass --package /absolute/path/to/the-built.tgz; registry installation is disabled until release.');
-    const runtime = action === 'rollback' ? state?.previous : installRuntime(home, values.package ?? packageName + '@' + (action === 'update' ? 'latest' : version));
+    const runtime = action === 'rollback' ? state?.previous : installRuntime(home, values.package ?? packageName + '@' + (action === 'update' ? (version.includes('-') ? 'next' : 'latest') : version));
     if (!runtime) throw new Error('No previous runtime available');
     const plans = plansFor(runtime, projects);
     applyAll(plans, () => activateRuntime(home, runtime, projects));

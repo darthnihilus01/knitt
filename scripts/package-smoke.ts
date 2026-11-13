@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+const packageVersion = JSON.parse(readFileSync('package.json', 'utf8')).version;
 const root = mkdtempSync(join(tmpdir(), "memory package ' ü "));
 const run = (command: string, args: string[], cwd = root) => execFileSync(command, args, { cwd, encoding: 'utf8', timeout: 180_000 });
 try {
@@ -21,11 +22,11 @@ try {
   }
   const archive = join(root, packed.filename), bootstrap = join(root, 'temporary bootstrap');
   const npxCache = join(root, 'temporary npx cache');
-  assert.equal(run('npm', ['exec', '--yes', '--cache', npxCache, '--package', archive, '--', 'knitt', '--version']).trim(), '0.1.0');
+  assert.equal(run('npm', ['exec', '--yes', '--cache', npxCache, '--package', archive, '--', 'knitt', '--version']).trim(), packageVersion);
   rmSync(npxCache, { recursive: true, force: true });
   run('npm', ['install', '--prefix', bootstrap, '--ignore-scripts', '--no-audit', '--no-fund', archive]);
   const cli = join(bootstrap, 'node_modules/@tinchu0/knitt/dist/packages/installer/src/cli.js');
-  assert.equal(run(process.execPath, [cli, '--version']).trim(), '0.1.0');
+  assert.equal(run(process.execPath, [cli, '--version']).trim(), packageVersion);
   const workspace = join(root, 'consumer project'), home = join(root, 'permanent home');
   run('git', ['init', '--initial-branch=main', workspace]);
   mkdirSync(join(workspace, '.claude'));

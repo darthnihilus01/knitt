@@ -2,10 +2,18 @@ import { DatabaseSync } from "node:sqlite";
 import { eventSchema, scopeSchema, searchSchema } from "../../contracts/src/events.ts";
 import type { StoredEvent } from "../../contracts/src/events.ts";
 
+import { assertSupportedSchema, migrate } from "./migrations.ts";
+import { ConversationStore } from "./conversations.ts";
+import type { SessionKey, SessionLocation } from "../../contracts/src/conversations.ts";
+import type { MemoryEvent } from "../../contracts/src/events.ts";
+
 export class MemoryStore {
   private db: DatabaseSync;
-  constructor(path: string) {
+  private conversations?: ConversationStore;
+  constructor(path: string, options: { conversationMode?: boolean } = {}) {
     this.db = new DatabaseSync(path);
+    try {
+    assertSupportedSchema(this.db);
     this.db.exec(`
       PRAGMA journal_mode=WAL;
       PRAGMA busy_timeout=5000;
@@ -25,6 +33,23 @@ export class MemoryStore {
         PRIMARY KEY(repo, session)
       );
     `);
+    if(options.conversationMode){migrate(this.db);this.conversations=new ConversationStore(this.db);}
+    }catch(error){this.db.close();throw error;}
+  }
+  private conversationStore(){if(!this.conversations)throw new Error("Enable conversation mode");return this.conversations;}
+  ensureSession(key:SessionKey,location:SessionLocation){return this.conversationStore().ensureSession(key,location);}
+  listConversations(repoId:string){return this.conversationStore().list(repoId);}
+  appendEvidence(key:SessionKey,input:MemoryEvent):StoredEvent {
+    const conversation=this.conversationStore().session(key),event=eventSchema.parse(input);
+    if(event.repoId!==key.repoId||event.featureId!==conversation.conversationId)throw new Error("Evidence belongs to another conversation");
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const prior=this.db.prepare("SELECT conversation FROM conversation_evidence WHERE repo=? AND event_id=?").get(key.repoId,event.eventId);
+      if(prior&&prior.conversation!==conversation.conversationId)throw new Error("Evidence belongs to another conversation");
+      const saved=this.save(event);
+      this.db.prepare("INSERT OR IGNORE INTO conversation_evidence VALUES(?,?,?)").run(key.repoId,event.eventId,conversation.conversationId);
+      this.db.exec("COMMIT");return saved;
+    }catch(error){this.db.exec("ROLLBACK");throw error;}
   }
   save(input: unknown): StoredEvent {
     const event = eventSchema.parse(input);

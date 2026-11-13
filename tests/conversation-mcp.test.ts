@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync,rmSync } from "node:fs";
@@ -19,7 +20,7 @@ test("conversation MCP selects explicitly, preserves canceled link and scopes ev
  let cancel=false;
  client.setRequestHandler(ElicitRequestSchema,async request=>{
   if(request.params.mode==="url")throw new Error("Expected a form");
-  const schema=request.params.requestedSchema as {properties:{conversation:{oneOf:{const:string;title:string}[]}}};
+  const schema=z.object({properties:z.object({conversation:z.object({oneOf:z.array(z.object({const:z.string(),title:z.string()}))})})}).parse(request.params.requestedSchema);
   const options=schema.properties.conversation.oneOf;
   assert.equal(options.length,1);return cancel?{action:"cancel"}:{action:"accept",content:{conversation:options[0].const}};
  });
@@ -27,6 +28,8 @@ test("conversation MCP selects explicitly, preserves canceled link and scopes ev
   await client.connect(new StdioClientTransport({command:process.execPath,args:[resolve("apps/server/src/main.ts")],env,stderr:"inherit"}));
   const selected=await client.callTool({name:"choose_conversation",arguments:{sessionId:"destination"}});assert.ok(!selected.isError,JSON.stringify(selected));
   const context=await client.callTool({name:"get_context",arguments:{repoId:"r",sessionId:"destination"}});assert.ok(JSON.stringify(context).includes("upstream IDs"));
+  const checkpoint=await client.callTool({name:"save_checkpoint",arguments:{repoId:"r",sessionId:"destination",entries:[{id:"decision",category:"decision",content:"Use upstream IDs",evidenceIds:["source-e"],status:"reported"}]}});
+  assert.ok(!checkpoint.isError,JSON.stringify(checkpoint));
   cancel=true;assert.ok(!(await client.callTool({name:"choose_conversation",arguments:{sessionId:"destination"}})).isError);
   assert.ok(JSON.stringify(await client.callTool({name:"get_evidence",arguments:{repoId:"r",sessionId:"destination",eventId:"source-e"}})).includes("upstream IDs"));
   assert.equal((await client.callTool({name:"get_context",arguments:{repoId:"other",sessionId:"destination"}})).isError,true);

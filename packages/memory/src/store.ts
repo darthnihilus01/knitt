@@ -1,3 +1,5 @@
+import { saveCheckpoint, latestCheckpoint } from "./checkpoints.ts";
+import type { CheckpointEntry } from "../../contracts/src/conversations.ts";
 import { DatabaseSync } from "node:sqlite";
 import { eventSchema, scopeSchema, searchSchema } from "../../contracts/src/events.ts";
 import type { StoredEvent } from "../../contracts/src/events.ts";
@@ -52,6 +54,8 @@ export class MemoryStore {
     }catch(error){this.db.exec("ROLLBACK");throw error;}
   }
 
+  saveCheckpoint(key:SessionKey,entries:CheckpointEntry[]){return saveCheckpoint(this.db,this,key,entries);}
+  latestCheckpoint(repoId:string,conversationId:string,throughSeq?:number){this.conversationStore();return latestCheckpoint(this.db,repoId,conversationId,throughSeq);}
   sessionConversation(key:SessionKey){return this.conversationStore().session(key);}
   sessionLocation(key:SessionKey){return this.conversationStore().location(key);}
   linkSource(key:SessionKey,sourceConversationId:string){return this.conversationStore().linkSource(key,sourceConversationId);}

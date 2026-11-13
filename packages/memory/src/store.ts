@@ -1,3 +1,4 @@
+import { getConversationContext } from "./context.ts";
 import { saveCheckpoint, latestCheckpoint } from "./checkpoints.ts";
 import type { CheckpointEntry } from "../../contracts/src/conversations.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -54,6 +55,12 @@ export class MemoryStore {
     }catch(error){this.db.exec("ROLLBACK");throw error;}
   }
 
+  getConversationContext(key:SessionKey,options:{maxChars?:number}){return getConversationContext(this,key,options);}
+  conversationLocation(repoId:string,conversationId:string){
+    this.conversationStore().get(repoId,conversationId);
+    const row=this.db.prepare("SELECT workspace,branch,commit_id FROM native_sessions WHERE repo=? AND conversation=? LIMIT 1").get(repoId,conversationId);
+    return row?{workspace:String(row.workspace),branch:row.branch?String(row.branch):undefined,commit:row.commit_id?String(row.commit_id):undefined}:{};
+  }
   saveCheckpoint(key:SessionKey,entries:CheckpointEntry[]){return saveCheckpoint(this.db,this,key,entries);}
   latestCheckpoint(repoId:string,conversationId:string,throughSeq?:number){this.conversationStore();return latestCheckpoint(this.db,repoId,conversationId,throughSeq);}
   sessionConversation(key:SessionKey){return this.conversationStore().session(key);}

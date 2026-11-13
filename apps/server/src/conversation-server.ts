@@ -26,9 +26,7 @@ export function createConversationServer(env:NodeJS.ProcessEnv){
  };
  const annotations={readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false};
  server.registerTool("get_context",{description:"Retrieve this destination's evidence and its explicitly selected source snapshot.",inputSchema:scopeSchema.extend({featureId:z.string().optional(),sessionId:z.string().min(1)}).shape,annotations},async input=>{
-  const session=key(input);const events=store.conversationEvidence(session);const selected=[];let used=2;
-  for(const event of events){const size=JSON.stringify(event).length+1;if(used+size>input.maxChars)continue;selected.push(event);used+=size;}
-  return result({events:selected,total:events.length,truncated:selected.length<events.length,contentTrust:"untrusted_reference"});
+  return result(store.getConversationContext(key(input),{maxChars:input.maxChars}));
  });
  server.registerTool("get_evidence",{description:"Retrieve evidence accessible to this native session and selected source cutoff.",inputSchema:{repoId:z.string(),sessionId:z.string(),eventId:z.string()},annotations},async input=>{
   const event=store.conversationEvidence(key(input)).find(e=>e.eventId===input.eventId);

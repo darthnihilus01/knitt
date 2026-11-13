@@ -56,3 +56,8 @@ This repository remains a release candidate. Public release additionally require
 ## License
 
 Knitt is licensed under the [Apache License 2.0](LICENSE).
+
+
+## Local conversation memory preview
+
+Opt-in `setup --capture-new-sessions` adds independent coding-session histories, explicit continuation links and cited checkpoint-first recall. Existing connections remain compatible. See [local memory setup and recovery](docs/clients/local-agent-memory.md).

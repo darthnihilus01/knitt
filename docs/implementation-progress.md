@@ -78,3 +78,16 @@ Added the continue-chat skill and included it in Codex connection installation. 
 Added Claude Code configuration merging and a Claude Desktop local configuration fragment. Added OAuth-protected Streamable HTTP, owned chat sessions, read/write scopes, browser conversation picker and private setup profiles for ChatGPT/Claude web. External JWT/OIDC authentication is required; no authorization server is implemented. Local SQLite remains the persistence layer.
 
 Validation: 38 tests pass and TypeScript checking passes. Claude Code recognizes the installed project server, pending login/approval. Remote clients remain unconnected until public HTTPS, issuer and allowed subject values are configured. Desktop rendering and live web OAuth flows remain unverified. See [setup guide](clients/connector-setup.md).
+
+
+## Local conversation-centered memory · 2026-11-13
+
+Added opt-in new-session capture, provider-qualified session identities, additive versioned SQLite migrations with consistent backups, explicit direct-source continuation cutoffs, stored conversation discovery, bounded Codex/Claude metadata discovery, cited checkpoint revisions, checkpoint-first recall and content-free capture status. The updated runtime lifecycle checks target schema compatibility before changing connectors.
+
+Legacy connections remain in legacy mode unless explicitly upgraded through `--capture-new-sessions`. New conversation MCP mode is local-only. Existing HTTP/browser-pickers remain on their tested legacy contract. Original event payloads and IDs are preserved during schema migration; imported legacy Antigravity evidence is mapped without rewriting it.
+
+At this milestone, 64 automated tests and the expanded installed-tarball smoke test pass. Live Claude Code testing is unavailable because the CLI is not authenticated. Live native hook behavior for every supported client remains separate from process-fixture and installed-shell-hook evidence. No installed user project or live memory database was upgraded during development.
+
+See [local conversation memory](clients/local-agent-memory.md) for opt-in setup, checkpoint limits, diagnostics and recovery.
+
+A read-only live Codex CLI pilot called the new `get_context` tool against synthetic memory in a temporary repository. It recovered the rejected batch-retry approach, immutable upstream-ID decision, concurrency-test next step and a marker absent from the prompt. This establishes live model-driven MCP recall, not native startup/stop hook invocation; the pilot pre-registered and explicitly linked its synthetic destination. No filesystem tools or writes were requested.

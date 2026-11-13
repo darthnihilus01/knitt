@@ -25,3 +25,8 @@ Sources: [Claude connectors](https://support.claude.com/en/articles/11176164-use
 Adapter progress: incremental JSONL capture and a synthetic Antigravity hook-to-MCP handoff pass process integration tests. This is separate from the real two-user pilot above.
 
 Live local result: fresh Codex sessions verified automatic Stop capture and startup-driven get_context recall. Both repository hooks were enabled through normal Codex review. Antigravity SessionStart ran, but account quota blocked the model response, so the real cross-agent handoff is pending.
+
+
+### Local conversation-memory preview
+
+Opt-in conversation mode adds stored-chat selection, direct-source links and cited checkpoint recall for local coding connections. Codex and Claude Code historical metadata formats were inspected locally and are fixture-tested; automatic native hook support remains subject to the client evidence above. Expanded tarball tests execute generated hooks and real MCP connections from a disposable installation. They do not establish that a native desktop application will invoke those hooks. Claude Code was not authenticated for a live pilot. Remote conversation mode is outside this preview. See [local memory](local-agent-memory.md).

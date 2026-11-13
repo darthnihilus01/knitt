@@ -36,7 +36,8 @@
     "README.md",
     "docs/clients/connector-setup.md",
     "docs/clients/npm-installation.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/clients/local-agent-memory.md"
   ],
   "repository": {
     "type": "git",

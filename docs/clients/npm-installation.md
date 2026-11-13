@@ -60,3 +60,8 @@ Uninstall restores unchanged managed values and preserves independent additions 
 The selected package is `@tinchu0/knitt`, owned by the intended npm account `tinchu0`. A registry lookup returned no public package on 2026-11-13; Terminal login as `tinchu0` is verified. Version `0.1.0-beta.1` is prepared with public access and the `next` tag; actual publication is still pending. Knitt is licensed under Apache-2.0; the LICENSE file ships in the npm package. Native Windows setup deliberately fails rather than writing POSIX hook commands. Linux tarball checks are the current local verification target; macOS/Windows live client behavior remains unverified.
 
 ChatGPT, Claude web and teammate machines require a separately reachable authenticated service. Packaging a CLI does not supply hosting, authentication accounts or background synchronization.
+
+
+### Optional local conversation mode
+
+Add `--capture-new-sessions` to setup to opt a connected project into independent session capture and explicit continuation links. The preference survives subsequent setup/update operations. Existing connections keep their previous semantics until opted in. This mode upgrades the database using consistent SQLite backups; the updated installer blocks incompatible runtime downgrade rather than restoring data automatically. Use `doctor` for content-free capture status. See [setup and recovery](local-agent-memory.md).

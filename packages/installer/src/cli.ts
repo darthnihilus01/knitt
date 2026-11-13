@@ -52,16 +52,17 @@ function plansFor(runtime: Runtime, projects: Project[]) { return projects.map(p
 
 async function main() {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
-    workspace: { type: 'string' }, client: { type: 'string', multiple: true }, home: { type: 'string' },
+    session: { type: 'string' }, workspace: { type: 'string' }, client: { type: 'string', multiple: true }, home: { type: 'string' },
     package: { type: 'string' }, yes: { type: 'boolean' }, preview: { type: 'boolean' },
     'capture-new-sessions': { type: 'boolean' }, version: { type: 'boolean' }, help: { type: 'boolean' },
   } });
   if (values.version) { console.log(version); return; }
   const action = positionals[0];
   if (!action || values.help) {
-    console.log('Knitt ' + version + '\nCommands: setup, doctor, update, rollback, uninstall, serve\nOptions: --workspace PATH --client codex|claude-code|antigravity|claude-desktop (repeatable)\n         --capture-new-sessions --preview --yes --home PATH --package TARBALL_OR_VERSION_SPEC\nSetup configures a persistent local runtime; remote/team service is configured separately.'); return;
+    console.log('Knitt ' + version + '\nCommands: setup, doctor, update, rollback, uninstall, serve, continue\nOptions: --workspace PATH --client codex|claude-code|antigravity|claude-desktop (repeatable)\n         --capture-new-sessions --preview --yes --home PATH --package TARBALL_OR_VERSION_SPEC\nSetup configures a persistent local runtime; remote/team service is configured separately.'); return;
   }
   const home = resolve(values.home ?? defaultHome()), paths = runtimePaths(home);
+  if(action==='continue'){process.env.MEMORY_DB??=join(paths.data,'events.sqlite');await import('../../adapters/src/command.ts');return;}
   if (action === 'serve') {
     process.env.MEMORY_DB ??= join(paths.data, 'events.sqlite');
     await import('../../../apps/server/src/main.ts'); return;

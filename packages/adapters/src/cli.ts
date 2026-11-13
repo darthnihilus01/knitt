@@ -43,6 +43,7 @@ try {
       const git=(args:string[])=>{try{return execFileSync("git",args,{cwd:workspace,encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim()||undefined;}catch{return undefined;}};
       const branch=git(["symbolic-ref","--short","HEAD"]),commit=git(["rev-parse","HEAD"]);
       const conversation=store.ensureSession({repoId,client,nativeSessionId},{workspace,branch,commit});
+      if(action==="recall"&&process.env.MEMORY_LAUNCH_FEATURE?.startsWith("conversation:"))store.linkSource({repoId,client,nativeSessionId},process.env.MEMORY_LAUNCH_FEATURE);
       scope={repoId,featureId:conversation.conversationId,branch,commit};
     }finally{store.close();}
   } else if (process.env.MEMORY_SESSION_SELECTION === "1" && action !== "flush") {

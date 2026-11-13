@@ -19,3 +19,21 @@ test("native sessions are stable, client qualified, and cannot reassign evidence
   assert.equal(store.context({repoId: "r", featureId: a.conversationId}).total, 1);
  } finally { store.close(); }
 });
+
+test("continuations freeze source evidence and keep concurrent destinations separate",()=>{
+ const store=new MemoryStore(":memory:",{conversationMode:true});
+ try {
+  const akey={...key,nativeSessionId:"a"},bkey={...key,nativeSessionId:"b"},ckey={...key,nativeSessionId:"c"};
+  const a=store.ensureSession(akey,location),b=store.ensureSession(bkey,location);store.ensureSession(ckey,location);
+  const save=(k:typeof key,id:string,featureId:string)=>store.appendEvidence(k,{repoId:"r",featureId,eventId:id,kind:"progress",content:id});
+  save(akey,"before",a.conversationId);store.linkSource(bkey,a.conversationId);store.linkSource(ckey,a.conversationId);
+  save(akey,"after",a.conversationId);save(bkey,"destination",b.conversationId);
+  assert.deepEqual(store.conversationEvidence(bkey).map(e=>e.eventId),["destination","before"]);
+  assert.deepEqual(store.conversationEvidence(ckey).map(e=>e.eventId),["before"]);
+  assert.equal(store.context({repoId:"r",featureId:a.conversationId}).total,2);
+  assert.throws(()=>store.linkSource(bkey,b.conversationId),/self/);
+  assert.throws(()=>store.linkSource({...bkey,repoId:"other"},a.conversationId));
+  store.linkSource(bkey,a.conversationId);
+  assert.deepEqual(store.conversationEvidence(bkey).map(e=>e.eventId),["destination","after","before"]);
+ }finally{store.close();}
+});

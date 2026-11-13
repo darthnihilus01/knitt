@@ -1,3 +1,4 @@
+import { createConversationServer } from "./conversation-server.ts";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -17,6 +18,10 @@ export type MemoryServerOptions = {
   pickerLink?: (sessionId: string, conversations: Conversation[]) => string;
 };
 export function createMemoryServer(env: NodeJS.ProcessEnv = process.env, options: MemoryServerOptions = {}) {
+  if(env.MEMORY_CONVERSATION_MODE==="1"){
+    if(options.ownerId)throw new Error("Conversation mode currently supports local coding clients only");
+    return createConversationServer(env);
+  }
   const boundRepo = env.MEMORY_REPO;
   const boundFeature = env.MEMORY_FEATURE;
   const sessionSelection = env.MEMORY_SESSION_SELECTION === "1";

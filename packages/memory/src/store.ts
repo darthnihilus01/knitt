@@ -51,6 +51,26 @@ export class MemoryStore {
       this.db.exec("COMMIT");return saved;
     }catch(error){this.db.exec("ROLLBACK");throw error;}
   }
+
+  sessionConversation(key:SessionKey){return this.conversationStore().session(key);}
+  sessionLocation(key:SessionKey){return this.conversationStore().location(key);}
+  linkSource(key:SessionKey,sourceConversationId:string){return this.conversationStore().linkSource(key,sourceConversationId);}
+  selectedSource(key:SessionKey){return this.conversationStore().selectedSource(key);}
+  conversationRows(key:SessionKey){
+    const own=this.sessionConversation(key),source=this.selectedSource(key);
+    return this.db.prepare(`SELECT e.seq,e.payload,e.received,m.conversation FROM events e JOIN conversation_evidence m ON e.repo=m.repo AND e.id=m.event_id WHERE e.repo=? AND (m.conversation=? OR (m.conversation=? AND e.seq<=?)) ORDER BY e.seq DESC`).all(key.repoId,own.conversationId,source?.sourceConversationId??"",source?.throughSeq??0);
+  }
+  conversationEvidence(key:SessionKey):StoredEvent[]{return this.conversationRows(key).map(row=>({...JSON.parse(String(row.payload)),receivedAt:String(row.received)}));}
+  importLegacyEvidence(key:SessionKey,featureId:string){
+    const own=this.sessionConversation(key);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const conflicts=this.db.prepare("SELECT 1 FROM events e JOIN conversation_evidence m ON m.repo=e.repo AND m.event_id=e.id WHERE e.repo=? AND e.feature=? AND m.conversation<>? LIMIT 1").get(key.repoId,featureId,own.conversationId);
+      if(conflicts)throw new Error("Imported evidence belongs to another conversation");
+      this.db.prepare("INSERT OR IGNORE INTO conversation_evidence SELECT repo,id,? FROM events WHERE repo=? AND feature=?").run(own.conversationId,key.repoId,featureId);
+      this.db.exec("COMMIT");
+    }catch(error){this.db.exec("ROLLBACK");throw error;}
+  }
   save(input: unknown): StoredEvent {
     const event = eventSchema.parse(input);
     const payload = JSON.stringify(event);

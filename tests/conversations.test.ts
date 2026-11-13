@@ -82,3 +82,23 @@ test("continuations freeze source evidence and keep concurrent destinations sepa
     store.close();
   }
 });
+
+test("native startup capability is scoped, hashed and revocable", () => {
+  const store = new MemoryStore(":memory:", { conversationMode: true });
+  try {
+    store.ensureSession(key, location);
+    const other = { ...key, nativeSessionId: "other" };
+    store.ensureSession(other, location);
+    const first = store.issueSessionToken(key);
+    assert.doesNotThrow(() => store.assertSessionToken(key, first));
+    assert.throws(
+      () => store.assertSessionToken(other, first),
+      /capability|sessionToken/,
+    );
+    const replacement = store.issueSessionToken(key);
+    assert.throws(() => store.assertSessionToken(key, first), /capability/);
+    assert.doesNotThrow(() => store.assertSessionToken(key, replacement));
+  } finally {
+    store.close();
+  }
+});

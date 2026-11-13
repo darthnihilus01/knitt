@@ -29,15 +29,34 @@ test("capture health distinguishes no observation, delivery and unsupported hook
           encoding: "utf8",
         },
       );
+    const recall = spawnSync(
+      process.execPath,
+      [resolve("packages/adapters/src/cli.ts"), "recall", "codex"],
+      {
+        env,
+        input: JSON.stringify({ session_id: "not-stopped" }),
+        encoding: "utf8",
+      },
+    );
+    assert.equal(recall.status, 0);
+    const unobserved = readCaptureStatuses(queue).find(
+      (s) => s.session.nativeSessionId === "not-stopped",
+    );
+    assert.ok(unobserved);
+    assert.equal(unobserved.lastCaptureAt, null);
     const good = run({ last_assistant_message: "remember this" });
     assert.equal(good.status, 0, good.stderr);
-    let status = readCaptureStatuses(queue)[0];
+    let status = readCaptureStatuses(queue).find(
+      (s) => s.session.nativeSessionId === "s",
+    )!;
     assert.ok(status.lastCaptureAt);
     assert.ok(status.lastDeliveryAt);
     assert.equal(status.pending, 0);
     assert.equal(status.lastErrorCode, null);
     run({});
-    status = readCaptureStatuses(queue)[0];
+    status = readCaptureStatuses(queue).find(
+      (s) => s.session.nativeSessionId === "s",
+    )!;
     assert.equal(status.lastErrorCode, "CAPTURE_FAILED");
     assert.ok(status.lastDeliveryAt);
     assert.ok(!JSON.stringify(status).includes("remember this"));

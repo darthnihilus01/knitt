@@ -1,3 +1,6 @@
+import { DatabaseSync } from "node:sqlite";
+import { existsSync } from "node:fs";
+import { schemaVersion } from "../../memory/src/migrations.ts";
 import { discoverConversations, importDiscovered } from "./discovery.ts";
 import { createInterface } from "node:readline/promises";
 import { pickConversation } from "./picker.ts";
@@ -25,6 +28,7 @@ async function main() {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
+      home: { type: "string" },
       session: { type: "string" },
       client: { type: "string" },
       conversation: { type: "string" },
@@ -47,10 +51,42 @@ async function main() {
       throw new Error(
         "Pass --workspace, --session and --client codex|claude|antigravity",
       );
-    const { workspace, repoId } = resolveRepository(resolve(values.workspace));
+    const resolved = resolveRepository(resolve(values.workspace));
+    const workspace = resolved.workspace,
+      repoId = process.env.MEMORY_REPO ?? resolved.repoId;
     const database = process.env.MEMORY_DB;
     if (!database)
       throw new Error("Set MEMORY_DB to the connected installation database");
+    if (process.env.MEMORY_CONVERSATION_MODE !== "1")
+      throw new Error("Use an opted-in project connection");
+    if (!process.stdin.isTTY)
+      throw new Error("Run the continuation picker interactively");
+    if (!existsSync(database))
+      throw new Error(
+        "No local conversation database; start the connected agent first",
+      );
+    const probe = new DatabaseSync(database, { readOnly: true });
+    try {
+      if (
+        Number(probe.prepare("PRAGMA user_version").get()!.user_version) !==
+        schemaVersion
+      )
+        throw new Error(
+          "Start the opted-in agent to prepare a compatible schema first",
+        );
+      if (
+        !probe
+          .prepare(
+            "SELECT 1 FROM native_sessions WHERE repo=? AND client=? AND native_id=?",
+          )
+          .get(repoId, values.client, values.session)
+      )
+        throw new Error(
+          "Unknown native session; start the connected agent first",
+        );
+    } finally {
+      probe.close();
+    }
     const store = new MemoryStore(database, { conversationMode: true });
     try {
       const key = {

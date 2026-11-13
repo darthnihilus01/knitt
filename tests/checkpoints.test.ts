@@ -71,6 +71,7 @@ test("checkpoints validate citations, reject invented verification and preserve 
       ]).checkpointId,
       b.checkpointId,
     );
+    assert.throws(() => store.saveCheckpoint(key, [entry]), /retired|supersed/);
     assert.notEqual(b.checkpointId, a.checkpointId);
     assert.deepEqual(
       b.entries.map((e) => e.id),

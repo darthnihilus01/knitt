@@ -23,6 +23,7 @@ test("conversation MCP selects explicitly, preserves canceled link and scopes ev
     kind: "decision",
     content: "Use stable upstream IDs",
   });
+  const sessionToken = store.issueSessionToken(key);
   store.close();
   const env = {
     ...process.env,
@@ -67,19 +68,58 @@ test("conversation MCP selects explicitly, preserves canceled link and scopes ev
         stderr: "inherit",
       }),
     );
+    const wrongExisting = await client.callTool({
+      name: "get_context",
+      arguments: { repoId: "r", sessionId: "source", sessionToken },
+    });
+    assert.equal(wrongExisting.isError, true);
+    for (const [name, args] of [
+      ["get_evidence", { eventId: "source-e" }],
+      ["search_memory", { query: "upstream" }],
+      [
+        "save_memory",
+        {
+          eventId: "wrong-destination",
+          kind: "progress",
+          content: "must not write",
+        },
+      ],
+      [
+        "save_checkpoint",
+        {
+          entries: [
+            {
+              id: "bad",
+              category: "decision",
+              content: "must not write",
+              evidenceIds: ["source-e"],
+              status: "reported",
+            },
+          ],
+        },
+      ],
+      ["choose_conversation", {}],
+    ] as const) {
+      const rejected = await client.callTool({
+        name,
+        arguments: { repoId: "r", sessionId: "source", sessionToken, ...args },
+      });
+      assert.equal(rejected.isError, true, name);
+    }
     const selected = await client.callTool({
       name: "choose_conversation",
-      arguments: { sessionId: "destination" },
+      arguments: { sessionToken, sessionId: "destination" },
     });
     assert.ok(!selected.isError, JSON.stringify(selected));
     const context = await client.callTool({
       name: "get_context",
-      arguments: { repoId: "r", sessionId: "destination" },
+      arguments: { sessionToken, repoId: "r", sessionId: "destination" },
     });
     assert.ok(JSON.stringify(context).includes("upstream IDs"));
     const checkpoint = await client.callTool({
       name: "save_checkpoint",
       arguments: {
+        sessionToken,
         repoId: "r",
         sessionId: "destination",
         entries: [
@@ -99,7 +139,7 @@ test("conversation MCP selects explicitly, preserves canceled link and scopes ev
       !(
         await client.callTool({
           name: "choose_conversation",
-          arguments: { sessionId: "destination" },
+          arguments: { sessionToken, sessionId: "destination" },
         })
       ).isError,
     );
@@ -108,6 +148,7 @@ test("conversation MCP selects explicitly, preserves canceled link and scopes ev
         await client.callTool({
           name: "get_evidence",
           arguments: {
+            sessionToken,
             repoId: "r",
             sessionId: "destination",
             eventId: "source-e",
@@ -119,7 +160,11 @@ test("conversation MCP selects explicitly, preserves canceled link and scopes ev
       (
         await client.callTool({
           name: "get_context",
-          arguments: { repoId: "other", sessionId: "destination" },
+          arguments: {
+            sessionToken,
+            repoId: "other",
+            sessionId: "destination",
+          },
         })
       ).isError,
       true,
@@ -128,7 +173,7 @@ test("conversation MCP selects explicitly, preserves canceled link and scopes ev
       (
         await client.callTool({
           name: "get_context",
-          arguments: { repoId: "r", sessionId: "unknown" },
+          arguments: { sessionToken, repoId: "r", sessionId: "unknown" },
         })
       ).isError,
       true,

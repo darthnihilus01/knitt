@@ -191,15 +191,18 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
       .map(quote)
       .join(" "),
   });
-  const connection = (desktop = false, client = "claude") => ({
-    command: node,
-    args: [server],
-    env: {
+  const connection = (desktop = false, client = "claude") => {
+    const clientEnv: Record<string, string> = {
       ...env,
-      ...(opts.captureNewSessions ? { MEMORY_CLIENT: client } : {}),
       ...(desktop ? { MEMORY_CHAT_CLIENT: "claude-desktop" } : {}),
-    },
-  });
+      ...(!desktop && opts.captureNewSessions ? { MEMORY_CLIENT: client } : {}),
+    };
+    if (desktop) {
+      delete clientEnv.MEMORY_CONVERSATION_MODE;
+      delete clientEnv.MEMORY_CAPTURE_NEW_SESSIONS;
+    }
+    return { command: node, args: [server], env: clientEnv };
+  };
   function owned(path: string, location: string[], current: any) {
     if (current === undefined) return;
     const prior = state.files[path];

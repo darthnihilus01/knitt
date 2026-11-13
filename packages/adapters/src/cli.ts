@@ -1,4 +1,8 @@
-import { recordCaptureStatus, pendingForSession } from "./status.ts";
+import {
+  recordCaptureStatus,
+  readCaptureStatuses,
+  pendingForSession,
+} from "./status.ts";
 import type { SessionKey } from "../../contracts/src/conversations.ts";
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
@@ -17,6 +21,14 @@ import { MemoryStore } from "../../memory/src/store.ts";
 const [action, client] = process.argv.slice(2);
 let captureSession: SessionKey | undefined;
 let capturedAt: string | null = null;
+let captureState:
+  | "unobserved"
+  | "captured"
+  | "partial"
+  | "no_supported_text"
+  | "no_new_text"
+  | "error" = "unobserved";
+let selectedSessionToken: string | undefined;
 const statusDirectory = process.env.MEMORY_QUEUE ?? resolve(".memory/queue");
 try {
   if (!["claude", "codex", "antigravity"].includes(client ?? ""))
@@ -97,6 +109,25 @@ try {
           { repoId, client, nativeSessionId },
           process.env.MEMORY_LAUNCH_FEATURE,
         );
+      if (action === "recall") {
+        selectedSessionToken = store.issueSessionToken(captureSession);
+        if (
+          !readCaptureStatuses(statusDirectory).some(
+            (s) =>
+              s.session.repoId === repoId &&
+              s.session.client === client &&
+              s.session.nativeSessionId === nativeSessionId,
+          )
+        )
+          recordCaptureStatus(statusDirectory, {
+            session: captureSession,
+            lastCaptureAt: null,
+            lastDeliveryAt: null,
+            pending: pendingForSession(statusDirectory, captureSession),
+            lastErrorCode: null,
+            captureState: "unobserved",
+          });
+      }
       scope = {
         repoId,
         featureId: conversation.conversationId,
@@ -163,66 +194,101 @@ try {
           scope,
           process.env.MEMORY_WORKSPACE,
           selectedSessionId,
+          selectedSessionToken,
         ),
       ),
     );
   } else if (action === "capture" || action === "flush") {
-    const directory = process.env.MEMORY_QUEUE ?? resolve(".memory/queue");
+    const directory = statusDirectory;
     if (action === "capture") {
       const transcriptPath = payload.transcript_path ?? payload.transcriptPath;
       if (typeof transcriptPath === "string" && transcriptPath) {
-        console.error(
-          JSON.stringify(
-            captureTranscript({
-              directory,
-              client: client as ClientName,
-              scope,
-              sessionId: String(
-                payload.session_id ?? payload.conversationId ?? "",
-              ),
-              path: transcriptPath,
-            }),
-          ),
-        );
+        const report = captureTranscript({
+          directory,
+          client: client as ClientName,
+          scope,
+          sessionId: String(payload.session_id ?? payload.conversationId ?? ""),
+          path: transcriptPath,
+          ...(conversationMode ? { session: captureSession } : {}),
+        });
+        console.error(JSON.stringify(report));
+        if (report.events > 0) capturedAt = new Date().toISOString();
+        captureState =
+          report.remainingBytes > 0
+            ? "partial"
+            : report.events > 0
+              ? "captured"
+              : report.records > 0
+                ? "no_supported_text"
+                : "no_new_text";
       } else {
-        capture(directory, client as ClientName, scope, payload);
+        capture(
+          directory,
+          client as ClientName,
+          scope,
+          payload,
+          conversationMode ? captureSession : undefined,
+        );
+        capturedAt = new Date().toISOString();
+        captureState = "captured";
       }
     }
-    if (action === "capture") capturedAt = new Date().toISOString();
-    const report = flush(directory, (event) => {
+    const touched = new Map<
+      string,
+      { session: SessionKey; delivered: boolean }
+    >();
+    if (captureSession)
+      touched.set(JSON.stringify(captureSession), {
+        session: captureSession,
+        delivered: false,
+      });
+    const report = flush(directory, (event, queuedSession) => {
+      if (queuedSession) {
+        if (
+          event.repoId !== queuedSession.repoId ||
+          event.sessionId !== queuedSession.nativeSessionId ||
+          !event.source?.startsWith(queuedSession.client + ":")
+        )
+          throw new Error("Queued evidence identity mismatch");
+        const id = JSON.stringify(queuedSession);
+        if (!touched.has(id))
+          touched.set(id, { session: queuedSession, delivered: false });
+      }
       const path = process.env.MEMORY_DB ?? resolve(".memory/events.sqlite");
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-      const store = new MemoryStore(path, { conversationMode });
+      const store = new MemoryStore(path, {
+        conversationMode: !!queuedSession,
+      });
       try {
-        if (
-          conversationMode &&
-          event.featureId.startsWith("conversation:") &&
-          event.sessionId
-        ) {
-          const eventClient = event.source?.split(":")[0];
-          if (!eventClient)
-            throw new Error("Queued conversation event has no client");
-          store.appendEvidence(
-            {
-              repoId: event.repoId,
-              client: eventClient,
-              nativeSessionId: event.sessionId,
-            },
-            event,
-          );
-        } else store.save(event);
+        if (queuedSession) store.appendEvidence(queuedSession, event);
+        else store.save(event);
       } finally {
         store.close();
       }
+      if (queuedSession)
+        touched.get(JSON.stringify(queuedSession))!.delivered = true;
     });
-    if (conversationMode && captureSession)
+    for (const { session, delivered } of touched.values()) {
+      const ownCapture =
+        action === "capture" &&
+        captureSession &&
+        JSON.stringify(session) === JSON.stringify(captureSession);
+      const previous = readCaptureStatuses(directory).find(
+        (s) => JSON.stringify(s.session) === JSON.stringify(session),
+      );
+      const pending = pendingForSession(directory, session);
       recordCaptureStatus(directory, {
-        session: captureSession,
-        lastCaptureAt: capturedAt,
-        lastDeliveryAt: report.delivered ? new Date().toISOString() : null,
-        pending: pendingForSession(directory, captureSession),
-        lastErrorCode: report.pending ? "DELIVERY_PENDING" : null,
+        session,
+        lastCaptureAt: ownCapture ? capturedAt : null,
+        lastDeliveryAt: delivered ? new Date().toISOString() : null,
+        pending,
+        lastErrorCode: pending ? "DELIVERY_PENDING" : null,
+        lastAttemptAt: ownCapture ? new Date().toISOString() : null,
+        captureState: ownCapture
+          ? captureState
+          : (previous?.captureState ?? "unobserved"),
       });
+    }
     console.error(JSON.stringify(report));
     console.log("{}");
   } else throw new Error("Choose capture, recall or flush");
@@ -235,6 +301,8 @@ try {
         lastDeliveryAt: null,
         pending: pendingForSession(statusDirectory, captureSession),
         lastErrorCode: "CAPTURE_FAILED",
+        lastAttemptAt: new Date().toISOString(),
+        captureState: "error",
       });
     } catch {
       /* The data path itself may be unavailable; stderr still reports failure. */

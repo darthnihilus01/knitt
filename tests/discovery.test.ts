@@ -63,6 +63,8 @@ test("discovery filters repositories and imports Codex and Claude only after sel
       importDiscovered(store, "r", c, join(dir, "queue"));
     const imported = store.listConversations("r");
     assert.equal(imported.length, 2);
+    const again = discoverConversations(store, "r", workspace, roots);
+    assert.equal(again.conversations.length, 2);
     assert.ok(
       imported.some((c) =>
         store

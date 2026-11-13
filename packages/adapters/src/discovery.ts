@@ -63,7 +63,26 @@ export function discoverConversations(
   } catch {
     diagnostics.push("Antigravity history unavailable or unsupported");
   }
-  return { conversations, diagnostics };
+  const seen = new Set<string>();
+  const unique = conversations.filter((c) => {
+    if (!c.storedId) {
+      try {
+        store.sessionConversation({
+          repoId,
+          client: c.client,
+          nativeSessionId: c.sourceId,
+        });
+        return false;
+      } catch {
+        /* external conversation not captured yet */
+      }
+    }
+    const identity = c.storedId ?? c.client + ":" + c.sourceId;
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+  return { conversations: unique, diagnostics };
 }
 export function importDiscovered(
   store: MemoryStore,
@@ -85,6 +104,11 @@ export function importDiscovered(
     client: source.client,
     nativeSessionId: source.sourceId,
   };
+  try {
+    return store.sessionConversation(key).conversationId;
+  } catch {
+    /* Import only previously uncaptured sources. */
+  }
   const conversation = store.ensureSession(key, {
     workspace: source.workspace,
   });
@@ -111,6 +135,7 @@ export function importDiscovered(
         scope: { repoId, featureId: conversation.conversationId },
         sessionId: source.sourceId,
         path: source.transcript,
+        session: key,
       });
       if (report.remainingBytes === 0 || report.offset === previous) break;
       previous = report.offset;

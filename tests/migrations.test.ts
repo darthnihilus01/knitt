@@ -87,3 +87,48 @@ test("failed migration rolls back schema and version", async () => {
     db.close();
   }
 });
+
+test("checkpoint retirement survives upgrading an earlier conversation schema", () => {
+  const dir = mkdtempSync(join(tmpdir(), "knitt-retirement-upgrade-")),
+    path = join(dir, "events.sqlite"),
+    key = { repoId: "r", client: "codex", nativeSessionId: "s" };
+  try {
+    let store = new MemoryStore(path, { conversationMode: true });
+    const own = store.ensureSession(key, { workspace: "/p" });
+    store.appendEvidence(key, {
+      repoId: "r",
+      featureId: own.conversationId,
+      eventId: "e",
+      kind: "decision",
+      content: "e",
+    });
+    const entry = {
+      id: "a",
+      category: "decision" as const,
+      content: "old",
+      evidenceIds: ["e"],
+      status: "reported" as const,
+    };
+    store.saveCheckpoint(key, [entry]);
+    store.saveCheckpoint(key, [
+      { ...entry, id: "b", content: "new", supersedes: "a" },
+    ]);
+    store.close();
+    const db = new DatabaseSync(path);
+    db.exec(
+      "DROP TABLE retired_checkpoint_entries; ALTER TABLE native_sessions DROP COLUMN token_hash; ALTER TABLE continuation_links DROP COLUMN checkpoint_seq; ALTER TABLE continuation_links DROP COLUMN source_location; PRAGMA user_version=3;",
+    );
+    db.close();
+    store = new MemoryStore(path, { conversationMode: true });
+    try {
+      assert.throws(
+        () => store.saveCheckpoint(key, [entry]),
+        /retired|supersed/,
+      );
+    } finally {
+      store.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

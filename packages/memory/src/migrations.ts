@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { chmodSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-export const schemaVersion = 3;
+export const schemaVersion = 4;
 export function assertSupportedSchema(db: DatabaseSync) {
   const version = Number(db.prepare("PRAGMA user_version").get()!.user_version);
   if (version > schemaVersion)
@@ -40,6 +40,18 @@ export function migrate(db: DatabaseSync): void {
       db.exec(
         `CREATE TABLE checkpoints(seq INTEGER PRIMARY KEY AUTOINCREMENT,repo TEXT NOT NULL,conversation TEXT NOT NULL,id TEXT NOT NULL,through_seq INTEGER NOT NULL,payload TEXT NOT NULL,UNIQUE(repo,id)); CREATE INDEX checkpoints_scope ON checkpoints(repo,conversation,seq); PRAGMA user_version=3;`,
       );
+    if (version < 4)
+      db.exec(`
+      ALTER TABLE native_sessions ADD COLUMN token_hash TEXT;
+      ALTER TABLE continuation_links ADD COLUMN checkpoint_seq INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE continuation_links ADD COLUMN source_location TEXT NOT NULL DEFAULT '{}';
+      CREATE TABLE retired_checkpoint_entries(repo TEXT NOT NULL,conversation TEXT NOT NULL,id TEXT NOT NULL,PRIMARY KEY(repo,conversation,id));
+      INSERT OR IGNORE INTO retired_checkpoint_entries
+        SELECT checkpoints.repo,checkpoints.conversation,json_extract(entry.value,'$.supersedes')
+        FROM checkpoints,json_each(checkpoints.payload,'$.entries') entry
+        WHERE json_type(entry.value,'$.supersedes')='text';
+      PRAGMA user_version=4;
+    `);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");

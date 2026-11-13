@@ -179,7 +179,25 @@ try {
   const upgradedHooks = JSON.parse(
     readFileSync(join(workspace, ".claude/settings.local.json"), "utf8"),
   );
+  const sessionTokens: Record<string, string> = {};
   for (const session of ["source-session", "destination-session"]) {
+    const startup = spawnSync(
+      "/bin/sh",
+      ["-c", upgradedHooks.hooks.SessionStart[0].hooks[0].command],
+      {
+        cwd: workspace,
+        input: JSON.stringify({ session_id: session, cwd: workspace }),
+        encoding: "utf8",
+      },
+    );
+    assert.equal(startup.status, 0, startup.stderr);
+    const token = JSON.parse(
+      startup.stdout,
+    ).hookSpecificOutput.additionalContext.match(
+      /"sessionToken":"([A-Za-z0-9_-]+)"/,
+    )?.[1];
+    assert.ok(token, startup.stdout);
+    sessionTokens[session] = token;
     const captured = spawnSync(
       "/bin/sh",
       ["-c", upgradedHooks.hooks.Stop[0].hooks[0].command],
@@ -240,6 +258,7 @@ try {
       arguments: {
         repoId: upgradedConfig.env.MEMORY_REPO,
         sessionId: "source-session",
+        sessionToken: sessionTokens["source-session"],
       },
     });
     const data = z
@@ -250,6 +269,7 @@ try {
       arguments: {
         repoId: upgradedConfig.env.MEMORY_REPO,
         sessionId: "source-session",
+        sessionToken: sessionTokens["source-session"],
         entries: [
           {
             id: "decision",
@@ -266,7 +286,10 @@ try {
       !(
         await conversationClient.callTool({
           name: "choose_conversation",
-          arguments: { sessionId: "destination-session" },
+          arguments: {
+            sessionId: "destination-session",
+            sessionToken: sessionTokens["destination-session"],
+          },
         })
       ).isError,
     );
@@ -275,6 +298,7 @@ try {
       arguments: {
         repoId: upgradedConfig.env.MEMORY_REPO,
         sessionId: "destination-session",
+        sessionToken: sessionTokens["destination-session"],
       },
     });
     assert.ok(
@@ -285,6 +309,7 @@ try {
       arguments: {
         repoId: upgradedConfig.env.MEMORY_REPO,
         sessionId: "destination-session",
+        sessionToken: sessionTokens["destination-session"],
         eventId: "destination-progress",
         kind: "progress",
         content: "Added destination-only regression test",
@@ -296,6 +321,7 @@ try {
       arguments: {
         repoId: upgradedConfig.env.MEMORY_REPO,
         sessionId: "source-session",
+        sessionToken: sessionTokens["source-session"],
       },
     });
     assert.ok(
@@ -308,6 +334,24 @@ try {
     run(process.execPath, [durableCli, "doctor", "--home", home]),
   );
   assert.equal(health.capture[0].captureObserved, true);
+  const terminal = spawnSync(
+    process.execPath,
+    [
+      durableCli,
+      "continue",
+      "--home",
+      home,
+      "--workspace",
+      workspace,
+      "--session",
+      "destination-session",
+      "--client",
+      "claude",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.notEqual(terminal.status, 0);
+  assert.ok(terminal.stderr.includes("interactively"), terminal.stderr);
   const memory = join(home, "data/preserved.txt");
   writeFileSync(memory, "keep across lifecycle");
   const first = state().current.appRoot;

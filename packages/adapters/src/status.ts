@@ -6,6 +6,17 @@ import { sessionKeySchema } from "../../contracts/src/conversations.ts";
 import { openQueue } from "./hooks.ts";
 export const captureStatusSchema = z.object({
   session: sessionKeySchema,
+  lastAttemptAt: z.string().nullable().default(null),
+  captureState: z
+    .enum([
+      "unobserved",
+      "captured",
+      "partial",
+      "no_supported_text",
+      "no_new_text",
+      "error",
+    ])
+    .default("unobserved"),
   lastCaptureAt: z.string().nullable(),
   lastDeliveryAt: z.string().nullable(),
   pending: z.number().int().nonnegative(),
@@ -14,7 +25,7 @@ export const captureStatusSchema = z.object({
 export type CaptureStatus = z.infer<typeof captureStatusSchema>;
 export function recordCaptureStatus(
   directory: string,
-  input: CaptureStatus,
+  input: z.input<typeof captureStatusSchema>,
 ): void {
   const status = captureStatusSchema.parse(input),
     queue = openQueue(directory),
@@ -31,6 +42,7 @@ export function recordCaptureStatus(
       : null;
     const value = {
       ...status,
+      lastAttemptAt: status.lastAttemptAt ?? old?.lastAttemptAt ?? null,
       lastCaptureAt: status.lastCaptureAt ?? old?.lastCaptureAt ?? null,
       lastDeliveryAt: status.lastDeliveryAt ?? old?.lastDeliveryAt ?? null,
     };

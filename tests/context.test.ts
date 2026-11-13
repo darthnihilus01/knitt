@@ -142,3 +142,79 @@ test("switching source excludes checkpoint claims citing the former source", () 
     store.close();
   }
 });
+
+test("selection freezes source checkpoint revisions and location; coverage stays conversation-local", () => {
+  const store = new MemoryStore(":memory:", { conversationMode: true });
+  try {
+    const a = { ...key, nativeSessionId: "a" },
+      b = { ...key, nativeSessionId: "b" },
+      c = { ...key, nativeSessionId: "c" };
+    const bc = store.ensureSession(b, { workspace: "/b", commit: "old" }),
+      ac = store.ensureSession(a, { workspace: "/a" });
+    store.ensureSession(c, { workspace: "/c" });
+    store.appendEvidence(b, {
+      repoId: "r",
+      featureId: bc.conversationId,
+      eventId: "b",
+      kind: "decision",
+      content: "B own evidence",
+    });
+    store.appendEvidence(a, {
+      repoId: "r",
+      featureId: ac.conversationId,
+      eventId: "a",
+      kind: "decision",
+      content: "A later evidence",
+    });
+    store.linkSource(b, ac.conversationId);
+    const cp = store.saveCheckpoint(b, [
+      {
+        id: "old",
+        category: "decision",
+        content: "B old checkpoint",
+        evidenceIds: ["b"],
+        status: "reported",
+      },
+    ]);
+    assert.equal(cp.throughSeq, 1);
+    store.linkSource(c, bc.conversationId);
+    store.saveCheckpoint(b, [
+      {
+        id: "new",
+        category: "decision",
+        content: "B future checkpoint",
+        evidenceIds: ["b"],
+        status: "reported",
+      },
+    ]);
+    store.ensureSession(b, { workspace: "/moved", commit: "new" });
+    const result = store.getConversationContext(c, {});
+    assert.ok(JSON.stringify(result).includes("B old checkpoint"));
+    assert.ok(!JSON.stringify(result).includes("B future checkpoint"));
+    assert.ok(JSON.stringify(result.provenance).includes("old"));
+    assert.ok(!JSON.stringify(result.provenance).includes("/moved"));
+  } finally {
+    store.close();
+  }
+});
+test("exact-fit budgets include final truncation flag size", () => {
+  const store = new MemoryStore(":memory:", { conversationMode: true });
+  try {
+    const own = store.ensureSession(key, { workspace: "/p" });
+    store.appendEvidence(key, {
+      repoId: "r",
+      featureId: own.conversationId,
+      eventId: "e",
+      kind: "progress",
+      content: "one event",
+    });
+    for (let maxChars = 256; maxChars < 1200; maxChars++)
+      assert.ok(
+        JSON.stringify(store.getConversationContext(key, { maxChars }))
+          .length <= maxChars,
+        "budget " + maxChars,
+      );
+  } finally {
+    store.close();
+  }
+});

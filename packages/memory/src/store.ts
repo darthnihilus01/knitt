@@ -79,7 +79,18 @@ export class MemoryStore {
         .get(key.repoId, event.eventId);
       if (prior && prior.conversation !== conversation.conversationId)
         throw new Error("Evidence belongs to another conversation");
-      const saved = this.save(event);
+      const existing = this.evidence(key.repoId, event.eventId);
+      const withoutProvenance = (value: MemoryEvent) =>
+        JSON.stringify({
+          ...value,
+          branch: undefined,
+          commit: undefined,
+          receivedAt: undefined,
+        });
+      const saved =
+        existing && withoutProvenance(existing) === withoutProvenance(event)
+          ? existing
+          : this.save(event);
       this.db
         .prepare("INSERT OR IGNORE INTO conversation_evidence VALUES(?,?,?)")
         .run(key.repoId, event.eventId, conversation.conversationId);
@@ -116,9 +127,22 @@ export class MemoryStore {
     repoId: string,
     conversationId: string,
     throughSeq?: number,
+    checkpointSeq?: number,
   ) {
     this.conversationStore();
-    return latestCheckpoint(this.db, repoId, conversationId, throughSeq);
+    return latestCheckpoint(
+      this.db,
+      repoId,
+      conversationId,
+      throughSeq,
+      checkpointSeq,
+    );
+  }
+  issueSessionToken(key: SessionKey) {
+    return this.conversationStore().issueSessionToken(key);
+  }
+  assertSessionToken(key: SessionKey, token: string | undefined) {
+    this.conversationStore().assertSessionToken(key, token);
   }
   sessionConversation(key: SessionKey) {
     return this.conversationStore().session(key);
@@ -158,16 +182,28 @@ export class MemoryStore {
     try {
       const conflicts = this.db
         .prepare(
-          "SELECT 1 FROM events e JOIN conversation_evidence m ON m.repo=e.repo AND m.event_id=e.id WHERE e.repo=? AND e.feature=? AND m.conversation<>? LIMIT 1",
+          "SELECT 1 FROM events e JOIN conversation_evidence m ON m.repo=e.repo AND m.event_id=e.id WHERE e.repo=? AND e.feature=? AND m.conversation<>? AND json_extract(e.payload,'$.sessionId')=? AND json_extract(e.payload,'$.source') LIKE ? LIMIT 1",
         )
-        .get(key.repoId, featureId, own.conversationId);
+        .get(
+          key.repoId,
+          featureId,
+          own.conversationId,
+          key.nativeSessionId,
+          key.client + ":%",
+        );
       if (conflicts)
         throw new Error("Imported evidence belongs to another conversation");
       this.db
         .prepare(
-          "INSERT OR IGNORE INTO conversation_evidence SELECT repo,id,? FROM events WHERE repo=? AND feature=?",
+          "INSERT OR IGNORE INTO conversation_evidence SELECT repo,id,? FROM events WHERE repo=? AND feature=? AND json_extract(payload,'$.sessionId')=? AND json_extract(payload,'$.source') LIKE ?",
         )
-        .run(own.conversationId, key.repoId, featureId);
+        .run(
+          own.conversationId,
+          key.repoId,
+          featureId,
+          key.nativeSessionId,
+          key.client + ":%",
+        );
       this.db.exec("COMMIT");
     } catch (error) {
       this.db.exec("ROLLBACK");

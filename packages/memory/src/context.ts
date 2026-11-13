@@ -38,7 +38,10 @@ export function getConversationContext(
   const own = store.sessionConversation(key),
     source = store.selectedSource(key),
     rows = store.conversationRows(key),
-    events = store.conversationEvidence(key);
+    events: StoredEvent[] = rows.map((row) => ({
+      ...JSON.parse(String(row.payload)),
+      receivedAt: String(row.received),
+    }));
   const allowed = new Set(events.map((e) => e.eventId));
   const ownCheckpoint = store.latestCheckpoint(key.repoId, own.conversationId),
     sourceCheckpoint = source
@@ -46,6 +49,7 @@ export function getConversationContext(
           key.repoId,
           source.sourceConversationId,
           source.throughSeq,
+          source.checkpointSeq,
         )
       : null;
   const revisions = [ownCheckpoint, sourceCheckpoint].filter(
@@ -68,10 +72,7 @@ export function getConversationContext(
     source: source
       ? {
           ...source,
-          ...store.conversationLocation(
-            key.repoId,
-            source.sourceConversationId,
-          ),
+          ...source.location,
         }
       : null,
     scope: "destination_and_direct_source_only",
@@ -115,7 +116,7 @@ export function getConversationContext(
     };
     if (
       JSON.stringify(candidateCheckpoint).length <= Math.floor(maxChars / 2) &&
-      JSON.stringify(candidate).length <= maxChars
+      JSON.stringify(candidate).length + 1 <= maxChars
     ) {
       checkpoint.entries.push(entry);
       result = candidate;
@@ -127,7 +128,7 @@ export function getConversationContext(
       events: [...result.events, event],
       omitted: { ...result.omitted, events: result.omitted.events - 1 },
     };
-    if (JSON.stringify(candidate).length <= maxChars) result = candidate;
+    if (JSON.stringify(candidate).length + 1 <= maxChars) result = candidate;
   }
   result.truncated =
     result.truncated &&

@@ -1,6 +1,6 @@
 # Local agent memory design
 
-Status: proposed design accompanying the requested implementation plan; product code is unchanged.
+Status: implemented as an opt-in local preview on `codex/local-agent-memory`; native all-client lifecycle validation and final live capability-enabled recall remain limited as recorded in implementation progress.
 
 ## Intent
 
@@ -19,7 +19,7 @@ Make local coding-agent handoffs preserve useful context across new and continue
 2. Conversation-centered core: separate source conversations, native sessions, continuation links, evidence and derived checkpoints. Recommended foundation for local handoffs.
 3. Background indexing daemon: can discover missed capture, but introduces a persistent process and recovery requirements before the core model is ready.
 
-The user requested a plan after the conversation-centered proposal. These details are proposed implementation decisions, not an assertion that every detail has been approved.
+The user requested a plan after the conversation-centered proposal. The user subsequently authorized implementation. The execution record documents implementation rulings and validation limits.
 
 ## Model and boundaries
 

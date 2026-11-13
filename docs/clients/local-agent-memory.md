@@ -19,11 +19,11 @@ No existing installation is upgraded by building this source. A connection upgra
 
 ## Continue work
 
-Use `/continue-chat` in a fresh native agent session. The startup hook provides its native session ID. Pick the source explicitly. The destination keeps its own history; its direct source is limited to the evidence available when selected. Canceling preserves the previous link if one exists. Re-selecting refreshes the source cutoff. Ancestors are not recursively recalled.
+Use `/continue-chat` in a fresh native agent session. The startup hook provides its native session ID and a session capability. Every conversation-mode tool requires both; another known session ID alone grants no access. Capabilities rotate on startup and are stored only as hashes. Pick the source explicitly. The destination keeps its own history; its direct source is limited to the evidence, checkpoint revision and source location available when selected. Canceling preserves the previous link if one exists. Re-selecting refreshes the source cutoff. Ancestors are not recursively recalled.
 
 The picker includes stored Knitt conversations and supported local Antigravity, Codex and Claude Code JSONL histories. External discovery reads bounded metadata from known client directories and imports text only after selection. Unsupported metadata and missing directories produce diagnostics. Titles for Codex/Claude discovery currently use the client and native session ID. Clients' local formats can change; fixture support does not establish live support for every release.
 
-When MCP form selection is unavailable, use `knitt continue --workspace /absolute/path/to/project --session NATIVE_SESSION_ID --client codex` interactively, with the same `--home` as installation if customized. Use `claude` for Claude Code's native adapter name. The terminal picker requires a session already registered by its startup hook and uses the installation database. It does not reconfigure the project or launch an agent.
+When MCP form selection is unavailable, use `knitt continue --workspace /absolute/path/to/project --session NATIVE_SESSION_ID --client codex` interactively, with the same `--home` as installation if customized. Use `claude` for Claude Code's native adapter name. The terminal picker requires a session already registered by its startup hook and uses the installation database. It refuses projects that have not opted in and validates session/schema readiness before opening the database for writes. It does not reconfigure the project or launch an agent.
 
 ## Checkpoints and evidence
 
@@ -35,7 +35,7 @@ Recall prioritizes cited checkpoint entries and recent text, with attribution, b
 
 ## Observe capture
 
-`knitt doctor --home /installation/home` reports whether any capture status has been observed, last successful capture/delivery timestamps, queued counts and fixed error codes. It does not log message text. No observation means capture is unknown, not healthy. A missed stop hook cannot be diagnosed at the instant it fails to run; the next invocation or explicit inspection is needed. Queue retries remain invocation-driven, without a background daemon.
+`knitt doctor --home /installation/home` reports whether any capture status has been observed, last successful capture/delivery timestamps, per-session queued counts, observed-but-not-yet-captured sessions, partial or unsupported captures, and fixed error codes. It does not log message text. No observation means capture is unknown, not healthy. A missed stop hook cannot be diagnosed at the instant it fails to run; the next invocation or explicit inspection is needed. Queue retries remain invocation-driven, without a background daemon.
 
 ## Compatibility and recovery
 

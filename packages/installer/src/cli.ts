@@ -148,7 +148,30 @@ async function main() {
   const home = resolve(values.home ?? defaultHome()),
     paths = runtimePaths(home);
   if (action === "continue") {
-    process.env.MEMORY_DB ??= join(paths.data, "events.sqlite");
+    if (!values.workspace)
+      throw new Error("Pass --workspace for the connected project");
+    const common = (cwd: string) =>
+      execFileSync(
+        "git",
+        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+      ).trim();
+    const expected = common(resolve(values.workspace));
+    const state = readInstallation(home);
+    const project = state?.projects.find((p) => {
+      try {
+        return common(p.workspace) === expected;
+      } catch {
+        return false;
+      }
+    });
+    if (!project?.captureNewSessions)
+      throw new Error(
+        "This project has not opted into local conversation mode; run setup --capture-new-sessions first",
+      );
+    process.env.MEMORY_DB = project.database;
+    process.env.MEMORY_REPO = project.repoId;
+    process.env.MEMORY_CONVERSATION_MODE = "1";
     await import("../../adapters/src/command.ts");
     return;
   }
@@ -216,7 +239,8 @@ async function main() {
           .filter((s) => s.session.repoId === project.repoId);
         return {
           workspace: project.workspace,
-          captureObserved: observations.length > 0,
+          captureObserved: observations.some((s) => s.lastCaptureAt !== null),
+          startupObserved: observations.length > 0,
           sessions: observations,
         };
       });
@@ -255,6 +279,10 @@ async function main() {
       ...(values["capture-new-sessions"] ? { captureNewSessions: true } : {}),
     };
     // Validate and show changes before installing dependencies or writing settings.
+    const previousProject = readInstallation(home)?.projects.find(
+      (p) => p.workspace === workspace,
+    );
+    if (previousProject) project.repoId = previousProject.repoId;
     const plan = planConnection({ ...project, appRoot });
     preview(plan);
     if (values.preview) {
@@ -316,6 +344,7 @@ async function main() {
         (p) => p.workspace === project!.workspace,
       );
       if (existing) {
+        project.repoId = existing.repoId;
         project.clients = [
           ...new Set([...existing.clients, ...project.clients]),
         ];

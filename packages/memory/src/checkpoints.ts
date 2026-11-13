@@ -14,12 +14,13 @@ export function latestCheckpoint(
   repoId: string,
   conversationId: string,
   throughSeq = Number.MAX_SAFE_INTEGER,
+  checkpointSeq = Number.MAX_SAFE_INTEGER,
 ): Checkpoint | null {
   const row = db
     .prepare(
-      "SELECT payload FROM checkpoints WHERE repo=? AND conversation=? AND through_seq<=? ORDER BY seq DESC LIMIT 1",
+      "SELECT payload FROM checkpoints WHERE repo=? AND conversation=? AND through_seq<=? AND seq<=? ORDER BY seq DESC LIMIT 1",
     )
-    .get(repoId, conversationId, throughSeq);
+    .get(repoId, conversationId, throughSeq, checkpointSeq);
   return row ? JSON.parse(String(row.payload)) : null;
 }
 export function saveCheckpoint(
@@ -59,6 +60,16 @@ export function saveCheckpoint(
         throw new Error(
           "Checkpoint evidence is unavailable in this conversation",
         );
+      if (
+        db
+          .prepare(
+            "SELECT 1 FROM retired_checkpoint_entries WHERE repo=? AND conversation=? AND id=?",
+          )
+          .get(key.repoId, conversation.conversationId, entry.id)
+      )
+        throw new Error(
+          "Checkpoint entry was retired by supersession; use a new ID",
+        );
       const old = active.get(entry.id);
       if (old && JSON.stringify(old) !== JSON.stringify(entry))
         throw new Error(
@@ -69,10 +80,15 @@ export function saveCheckpoint(
         if (entry.supersedes === entry.id || !active.has(entry.supersedes))
           throw new Error("Unknown superseded checkpoint entry");
         active.delete(entry.supersedes);
+        db.prepare(
+          "INSERT OR IGNORE INTO retired_checkpoint_entries VALUES(?,?,?)",
+        ).run(key.repoId, conversation.conversationId, entry.supersedes);
       }
       active.set(entry.id, entry);
     }
-    const throughSeq = rows.reduce((max, r) => Math.max(max, Number(r.seq)), 0);
+    const throughSeq = rows
+      .filter((r) => r.conversation === conversation.conversationId)
+      .reduce((max, r) => Math.max(max, Number(r.seq)), 0);
     const body = {
       conversationId: conversation.conversationId,
       throughSeq,

@@ -1,6 +1,6 @@
 {
   "name": "@tinchu0/knitt",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -46,7 +46,7 @@
   "description": "Shared conversation memory for coding agents",
   "publishConfig": {
     "access": "public",
-    "tag": "next"
+    "tag": "latest"
   },
   "license": "Apache-2.0"
 }

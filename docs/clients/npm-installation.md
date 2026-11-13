@@ -1,25 +1,25 @@
 # npm installation and runtime lifecycle
 
-## Try the unpublished release candidate
+## Install the npm preview
 
-Build and pack from the repository:
+Run the published CLI:
 
 ```bash
-npm ci
-npm run check
-npm run build
-npm pack
+npx @tinchu0/knitt@latest setup \
+  --workspace /path/to/project --client codex --client claude-code
 ```
 
-Then use the tarball (absolute paths work from any directory):
+Add `--capture-new-sessions` to opt into independent local conversation histories and checkpoint-first handoffs. Version `0.1.0-beta.2` remains a preview. Both `latest` and `next` track the current preview release.
+
+To test a source checkout before publication, run `npm ci`, `npm run check`, `npm run build` and `npm pack`, then install its exact artifact:
 
 ```bash
-npx --yes --package ./tinchu0-knitt-0.1.0-beta.1.tgz knitt setup \
+npx --yes --package ./tinchu0-knitt-0.1.0-beta.2.tgz knitt setup \
   --workspace /path/to/project --client codex --client claude-code \
-  --package /absolute/path/to/tinchu0-knitt-0.1.0-beta.1.tgz
+  --package /absolute/path/to/tinchu0-knitt-0.1.0-beta.2.tgz
 ```
 
-The outer `--package` tells npx which CLI to run. The `--package` after `setup` tells setup which exact artifact to install persistently. Before registry publication this second argument is required for applying setup; preview can run without it. The release candidate is configured for registry publication; until it is published, pass the explicit tarball to setup/update. After publication, omitting the internal package argument installs the CLI's exact published version. `update` follows the `next` registry tag for prerelease CLIs and `latest` for stable CLIs.
+The outer `--package` selects the CLI; the `--package` after `setup` selects the artifact to install persistently. Without that inner option, setup installs the CLI's exact published version. `update` follows `next` for prerelease CLIs and `latest` for stable CLIs.
 
 Use `--preview` to inspect changes without creating installation/configuration files. Interactive setup asks before applying; automation must pass `--yes`. Repeat `--client` for several agents. Setup requires Git repository metadata to derive a stable repository identity.
 
@@ -38,7 +38,7 @@ The project-local `.memory/npm-connection.json` records original and generated s
 
 ## Commands
 
-Run commands through the tarball CLI above (or the eventual published package):
+Run commands through `npx @tinchu0/knitt@latest` or the tarball CLI above:
 
 ```text
 knitt setup --workspace PATH --client codex --preview
@@ -57,7 +57,7 @@ Uninstall restores unchanged managed values and preserves independent additions 
 
 ## Release gates
 
-The selected package is `@tinchu0/knitt`, owned by the intended npm account `tinchu0`. A registry lookup returned no public package on 2026-11-13; Terminal login as `tinchu0` is verified. Version `0.1.0-beta.1` is prepared with public access and the `next` tag; actual publication is still pending. Knitt is licensed under Apache-2.0; the LICENSE file ships in the npm package. Native Windows setup deliberately fails rather than writing POSIX hook commands. Linux tarball checks are the current local verification target; macOS/Windows live client behavior remains unverified.
+The package is `@tinchu0/knitt`, published under npm account `tinchu0`, with Apache-2.0 licensing. The LICENSE file ships in the npm archive. Release `0.1.0-beta.2` includes opt-in local conversation memory. Native Windows setup deliberately fails rather than writing POSIX hook commands. Linux tarball checks are the local verification target; macOS/Windows live client behavior remains unverified.
 
 ChatGPT, Claude web and teammate machines require a separately reachable authenticated service. Packaging a CLI does not supply hosting, authentication accounts or background synchronization.
 

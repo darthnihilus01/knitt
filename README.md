@@ -2,21 +2,23 @@
 
 Carry selected repository conversation context between coding agents. Choose the chat you want to continue, retrieve its checkpoint through MCP, and capture new progress using supported coding hooks.
 
-## npm installation (release candidate)
+## Installation
 
-The npm CLI is being prepared for publication. **It is not published yet:** the selected package is `@tinchu0/knitt`, and terminal login as `tinchu0` is verified. Until then, test the same distribution artifact locally:
+Knitt is published as `@tinchu0/knitt`. Node.js 24+ and Git are required.
 
 ```bash
-npm ci
-npm run build
-npm pack
-npx --yes --package ./tinchu0-knitt-0.1.0-beta.1.tgz knitt setup \
-  --package /absolute/path/to/tinchu0-knitt-0.1.0-beta.1.tgz
+npx @tinchu0/knitt@latest setup
 ```
 
-Setup asks for a Git project folder and agents. It shows configuration changes before applying them, installs a persistent runtime in your user data directory, and leaves client login/trust prompts to the client. Node.js 24+ and Git are required. The npm installation path does not require Python or a source checkout once the tarball exists.
+To enable independent local session capture and checkpoint handoffs for a project:
 
-Once a registry package has actually been published, the intended entry point is `npx @tinchu0/knitt@next setup`. That placeholder is not a current install command.
+```bash
+npx @tinchu0/knitt@latest setup \
+  --workspace /absolute/path/to/project --client codex --client claude-code \
+  --capture-new-sessions
+```
+
+Setup shows configuration changes before applying them and installs a persistent runtime in your user data directory. Restart agents and approve their normal MCP/hook trust prompts. The npm installation path does not require Python or a source checkout. Version `0.1.0-beta.2` remains a preview; `latest` and `next` identify the current preview release.
 
 Supported installer preview: Linux; macOS uses POSIX hooks but still needs platform validation. Native Windows installation is explicitly blocked pending implementation and tests; WSL can use the Linux path. Claude Desktop currently receives a configuration fragment requiring a manual merge into Desktop settings. No universal client compatibility is claimed.
 
@@ -28,13 +30,13 @@ See [npm installation and lifecycle](docs/clients/npm-installation.md) and [remo
 - **Claude Desktop:** a generated local MCP fragment; chat checkpoints use tool calls rather than coding hooks.
 - **ChatGPT / Claude web:** authenticated HTTP MCP is implemented, but requires your own public HTTPS endpoint and compatible OAuth provider. Local CLI setup does not provision a shared server.
 
-The continue-chat skill calls the user picker. New sessions begin unselected. The current history importer discovers local Antigravity conversations in the connected repository, including linked worktrees. It does not access arbitrary Claude or ChatGPT account histories. Ordinary chat MCP clients must explicitly call memory tools to save checkpoints; MCP alone cannot passively capture every chat turn.
+The continue-chat skill calls the user picker. New sessions begin unselected. Legacy connections discover local Antigravity conversations. Opt-in local conversation mode also lists stored Knitt conversations and supported Codex/Claude Code JSONL histories, scoped to the connected repository and linked worktrees. It does not access arbitrary Claude or ChatGPT account histories. Ordinary chat MCP clients must explicitly call memory tools to save checkpoints; MCP alone cannot passively capture every chat turn.
 
 Local memory is local to one machine. Team sharing requires a shared authenticated service; identical repository names do not synchronize databases.
 
 ## Memory behavior
 
-The tools are `choose_conversation`, `get_context`, `search_memory`, `get_evidence` and `save_memory`; ordinary chat profiles also expose `start_session`. Repository/session checks prevent one session from silently choosing another session's feature. The HTTP gateway validates JWT issuer, audience, expiry, subjects and scopes. Allowed users of a repository service share its feature evidence; finer team roles remain future work.
+The tools are `choose_conversation`, `get_context`, `search_memory`, `get_evidence` and `save_memory`; ordinary chat profiles also expose `start_session`. Local conversation mode additionally exposes `save_checkpoint` and requires the startup-issued session capability. Repository/session checks prevent one session from silently choosing another session's feature. The HTTP gateway validates JWT issuer, audience, expiry, subjects and scopes. Allowed users of a repository service share its feature evidence; finer team roles remain future work.
 
 Evidence stores supported user/assistant text, with stable IDs for deduplication. Raw tool results, images and hidden reasoning are excluded. Bounded context reports truncation; search/evidence tools retrieve older detail. Recalled material can be stale or conflicting and is reference material, not authorization to edit files. Basic credential redaction is best effort.
 
@@ -51,7 +53,7 @@ npm run test:package
 
 The legacy Python development installer remains available under `scripts/connect.py`. Published CLI setup and handoff installation use the Node-only planner.
 
-This repository remains a release candidate. Public release additionally requires publisher access confirmation, a full-history/private-data audit and supported-platform evidence. No npm publication or repository visibility change is performed by building or packing.
+Knitt remains a preview. Automated and installed-package checks do not establish live compatibility with every client or platform. Building or packing alone does not publish to npm.
 
 ## License
 

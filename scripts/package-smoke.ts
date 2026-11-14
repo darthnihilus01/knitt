@@ -6,19 +6,23 @@ import {
   writeFileSync,
   existsSync,
   rmSync,
-  chmodSync,
 } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync, spawnSync } from "node:child_process";
+import { npmCommand } from "../packages/installer/src/platform.ts";
 import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 const packageVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 const root = mkdtempSync(join(tmpdir(), "memory package ' ü "));
-const run = (command: string, args: string[], cwd = root) =>
-  execFileSync(command, args, { cwd, encoding: "utf8", timeout: 180_000 });
+const run = (command: string, args: string[], cwd = root) => {
+  const invocation = command === "npm" ? npmCommand(args) : { command, args };
+  return execFileSync(invocation.command, invocation.args, { cwd, encoding: "utf8", timeout: 180_000 });
+};
+const hookShell = process.platform === "win32" ? "cmd.exe" : "/bin/sh";
+const hookArgs = (command: string) => process.platform === "win32" ? ["/d", "/s", "/c", command] : ["-c", command];
 try {
   const report = JSON.parse(
     run(
@@ -105,6 +109,10 @@ try {
     "claude-code",
     "--client",
     "codex",
+    "--client",
+    "antigravity",
+    "--client",
+    "claude-desktop",
     "--home",
     home,
     "--package",
@@ -153,8 +161,8 @@ try {
     readFileSync(join(workspace, ".claude/settings.local.json"), "utf8"),
   );
   const hook = spawnSync(
-    "/bin/sh",
-    ["-c", hooks.hooks.SessionStart[0].hooks[0].command],
+    hookShell,
+    hookArgs(hooks.hooks.SessionStart[0].hooks[0].command),
     {
       cwd: workspace,
       input: JSON.stringify({
@@ -182,8 +190,8 @@ try {
   const sessionTokens: Record<string, string> = {};
   for (const session of ["source-session", "destination-session"]) {
     const startup = spawnSync(
-      "/bin/sh",
-      ["-c", upgradedHooks.hooks.SessionStart[0].hooks[0].command],
+      hookShell,
+      hookArgs(upgradedHooks.hooks.SessionStart[0].hooks[0].command),
       {
         cwd: workspace,
         input: JSON.stringify({ session_id: session, cwd: workspace }),
@@ -199,8 +207,8 @@ try {
     assert.ok(token, startup.stdout);
     sessionTokens[session] = token;
     const captured = spawnSync(
-      "/bin/sh",
-      ["-c", upgradedHooks.hooks.Stop[0].hooks[0].command],
+      hookShell,
+      hookArgs(upgradedHooks.hooks.Stop[0].hooks[0].command),
       {
         cwd: workspace,
         input: JSON.stringify({
@@ -208,7 +216,7 @@ try {
           cwd: workspace,
           last_assistant_message:
             session === "source-session"
-              ? "Rejected batch retry. Decision: upstream ID. Next: concurrent retry test."
+              ? "Rejected batch retry. Decision: upstream ID ü. Next: concurrent retry test."
               : "Destination started.",
         }),
         encoding: "utf8",

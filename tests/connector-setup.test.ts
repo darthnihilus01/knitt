@@ -33,7 +33,7 @@ test("connector setup prepares a reviewable OAuth profile and rejects non-HTTPS 
 test("Claude Desktop gets a local connector profile with chat-session initialization", () => {
   const workspace = mkdtempSync(join(tmpdir(), "desktop-setup-"));
   try {
-    const result = spawnSync("python3", [resolve("scripts/connect.py"), "--client", "claude-desktop",
+    const result = spawnSync(process.platform === "win32" ? "python" : "python3", [resolve("scripts/connect.py"), "--client", "claude-desktop",
       "--workspace", workspace, "--node", process.execPath, "--repo-id", "repo", "--apply"], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     const profile = JSON.parse(readFileSync(join(workspace, ".memory/connectors/claude-desktop.json"), "utf8"));

@@ -9,26 +9,45 @@ npx @tinchu0/knitt@latest setup \
   --workspace /path/to/project --client codex --client claude-code
 ```
 
-Add `--capture-new-sessions` to opt into independent local conversation histories and checkpoint-first handoffs. Version `0.1.0-beta.2` remains a preview. Both `latest` and `next` track the current preview release.
+Add `--capture-new-sessions` to opt into independent local conversation histories and checkpoint-first handoffs. Version `0.1.0-beta.3` remains a preview. Both `latest` and `next` track the current preview release.
 
 To test a source checkout before publication, run `npm ci`, `npm run check`, `npm run build` and `npm pack`, then install its exact artifact:
 
 ```bash
-npx --yes --package ./tinchu0-knitt-0.1.0-beta.2.tgz knitt setup \
+npx --yes --package ./tinchu0-knitt-0.1.0-beta.3.tgz knitt setup \
   --workspace /path/to/project --client codex --client claude-code \
-  --package /absolute/path/to/tinchu0-knitt-0.1.0-beta.2.tgz
+  --package /absolute/path/to/tinchu0-knitt-0.1.0-beta.3.tgz
 ```
 
 The outer `--package` selects the CLI; the `--package` after `setup` selects the artifact to install persistently. Without that inner option, setup installs the CLI's exact published version. `update` follows `next` for prerelease CLIs and `latest` for stable CLIs.
 
 Use `--preview` to inspect changes without creating installation/configuration files. Interactive setup asks before applying; automation must pass `--yes`. Repeat `--client` for several agents. Setup requires Git repository metadata to derive a stable repository identity.
 
+## Native platform setup
+
+Install Node.js 24+ with npm and Git, and add them to PATH. Windows hooks use built-in Windows PowerShell 5.1 (`powershell.exe` on PATH); no WSL or Python is needed for npm installation. macOS and Linux hooks use their POSIX shell.
+
+Windows PowerShell example (one line):
+
+```powershell
+npx @tinchu0/knitt@latest setup --workspace "C:\Users\you\My Project" --client codex --client claude-code --capture-new-sessions
+```
+
+macOS example:
+
+```sh
+npx @tinchu0/knitt@latest setup --workspace "$HOME/Projects/My Project" --client codex --client claude-code --capture-new-sessions
+```
+
+Existing installations can run `npx @tinchu0/knitt@latest update --yes`. Restart connected agents afterward and approve their normal hook/MCP trust prompts. Update retains memory and the existing capture preference. For Claude Desktop, merge the generated fragment into Desktop settings manually.
+
 ## Durable installation
 
 The default installation directory is:
 
 - Linux: `$XDG_DATA_HOME/shared-agent-memory` or `~/.local/share/shared-agent-memory`.
-- macOS: `~/Library/Application Support/SharedAgentMemory` (platform validation pending).
+- macOS: `~/Library/Application Support/SharedAgentMemory`.
+- Windows: `%LOCALAPPDATA%\SharedAgentMemory`, falling back to `~\AppData\Local\SharedAgentMemory`.
 
 Override with `SHARED_MEMORY_HOME` or `--home /absolute/path`. The directory contains private `data/`, versioned runtime installations and `installation.json`. Node and runtime paths in generated settings are absolute. Upgrading/removing Node itself can invalidate the executable path; rerun setup with the new Node installation.
 
@@ -57,7 +76,7 @@ Uninstall restores unchanged managed values and preserves independent additions 
 
 ## Release gates
 
-The package is `@tinchu0/knitt`, published under npm account `tinchu0`, with Apache-2.0 licensing. The LICENSE file ships in the npm archive. Release `0.1.0-beta.2` includes opt-in local conversation memory. Native Windows setup deliberately fails rather than writing POSIX hook commands. Linux tarball checks are the local verification target; macOS/Windows live client behavior remains unverified.
+The package is `@tinchu0/knitt`, published under npm account `tinchu0`, with Apache-2.0 licensing. The LICENSE file ships in the npm archive. Release `0.1.0-beta.3` retains opt-in local conversation memory and adds native Windows installation and hooks. Windows npm installation invokes the npm JavaScript entry point directly, keeping package arguments outside a shell. The CI matrix covers Linux, macOS and Windows; live client behavior is separate from packaged lifecycle verification.
 
 ChatGPT, Claude web and teammate machines require a separately reachable authenticated service. Packaging a CLI does not supply hosting, authentication accounts or background synchronization.
 

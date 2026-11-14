@@ -15,10 +15,10 @@ test("connection install preserves settings, backs up changes, and is repeatable
     writeFileSync(join(workspace, ".agents/hooks.json"), JSON.stringify({ existing: { Stop: [{ command: "echo keep" }] } }));
     writeFileSync(join(workspace, ".codex/hooks.json"), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "echo keep" }] }] } }));
     const args = [resolve("scripts/connect.py"), "--workspace", workspace, "--app-root", process.cwd(), "--node", process.execPath, "--repo-id", "test/repo"];
-    const preview = spawnSync("python3", args, { encoding: "utf8" });
+    const preview = spawnSync(process.platform === "win32" ? "python" : "python3", args, { encoding: "utf8" });
     assert.equal(preview.status, 0, preview.stderr);
     assert.equal(readFileSync(codexPath, "utf8"), 'model = "existing-model"\n');
-    const run = () => spawnSync("python3", [...args, "--apply"], { encoding: "utf8" });
+    const run = () => spawnSync(process.platform === "win32" ? "python" : "python3", [...args, "--apply"], { encoding: "utf8" });
     const installed = run();
     assert.equal(installed.status, 0, installed.stderr);
     assert.ok(readFileSync(codexPath, "utf8").startsWith('model = "existing-model"'));
@@ -84,7 +84,7 @@ test("Claude Code setup merges MCP, hooks and slash skill without changing exist
     mkdirSync(join(workspace, ".claude"));
     writeFileSync(join(workspace, ".mcp.json"), '{"mcpServers":{"existing":{"command":"keep"}}}');
     writeFileSync(join(workspace, ".claude/settings.local.json"), '{"permissions":{"allow":["Read"]},"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo keep"}]}]}}');
-    const result = spawnSync("python3", [
+    const result = spawnSync(process.platform === "win32" ? "python" : "python3", [
       resolve("scripts/connect.py"), "--workspace", workspace, "--node", process.execPath,
       "--repo-id", "repo", "--client", "claude-code", "--session-selection", "--apply",
     ], { encoding: "utf8" });
@@ -108,7 +108,7 @@ test("generated connector files stay excluded in linked Git worktrees", async ()
     execFileSync("git", ["init", "--initial-branch=main", main], { stdio: "ignore" });
     execFileSync("git", ["-C", main, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial"], { stdio: "ignore" });
     execFileSync("git", ["-C", main, "worktree", "add", "-b", "feature", worktree], { stdio: "ignore" });
-    const result = spawnSync("python3", [resolve("scripts/connect.py"), "--client", "claude-code",
+    const result = spawnSync(process.platform === "win32" ? "python" : "python3", [resolve("scripts/connect.py"), "--client", "claude-code",
       "--workspace", worktree, "--node", process.execPath, "--repo-id", "repo", "--session-selection", "--apply"], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(spawnSync("git", ["-C", worktree, "check-ignore", ".mcp.json"], { encoding: "utf8" }).status, 0);

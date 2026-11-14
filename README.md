@@ -18,9 +18,9 @@ npx @tinchu0/knitt@latest setup \
   --capture-new-sessions
 ```
 
-Setup shows configuration changes before applying them and installs a persistent runtime in your user data directory. Restart agents and approve their normal MCP/hook trust prompts. The npm installation path does not require Python or a source checkout. Version `0.1.0-beta.2` remains a preview; `latest` and `next` identify the current preview release.
+Setup shows configuration changes before applying them and installs a persistent runtime in your user data directory. Restart agents and approve their normal MCP/hook trust prompts. The npm installation path does not require Python or a source checkout. Version `0.1.0-beta.3` remains a preview; `latest` and `next` identify the current preview release.
 
-Supported installer preview: Linux; macOS uses POSIX hooks but still needs platform validation. Native Windows installation is explicitly blocked pending implementation and tests; WSL can use the Linux path. Claude Desktop currently receives a configuration fragment requiring a manual merge into Desktop settings. No universal client compatibility is claimed.
+The installer includes native Linux, macOS and Windows paths. Windows hooks use built-in Windows PowerShell; macOS and Linux use POSIX hooks. CI runs the full suite and packaged lifecycle checks on all three operating systems. Live application handoffs still require client-specific validation. Claude Desktop currently receives a configuration fragment requiring a manual merge into Desktop settings. No universal client compatibility is claimed.
 
 See [npm installation and lifecycle](docs/clients/npm-installation.md) and [remote connector setup](docs/clients/connector-setup.md).
 

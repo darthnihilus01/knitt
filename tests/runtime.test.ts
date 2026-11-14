@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { npmCommand } from "../packages/installer/src/platform.ts";
 import {
   runtimePaths,
   withInstallLock,
@@ -35,8 +36,9 @@ test("runtime install is durable, versioned and does not replace active version 
       join(dir, "dist/packages/installer/src/cli.js"),
       "console.log('runtime ok');",
     );
+    const npm = npmCommand(["pack", "--json", "--pack-destination", root]);
     const result = JSON.parse(
-      execFileSync("npm", ["pack", "--json", "--pack-destination", root], {
+      execFileSync(npm.command, npm.args, {
         cwd: dir,
         encoding: "utf8",
       }),

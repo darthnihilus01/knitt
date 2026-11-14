@@ -1,3 +1,4 @@
+import { hookCommand, isManagedHook } from "./platform.ts";
 import {
   readFileSync,
   existsSync,
@@ -131,10 +132,6 @@ export function readConnectionState(workspace: string): State {
 }
 
 export function planConnection(opts: ConnectionOptions): ConnectionPlan {
-  if (process.platform === "win32")
-    throw new Error(
-      "Windows hook installation is not yet validated. Use WSL for this preview.",
-    );
   const workspace = realpathSync(opts.workspace),
     app = resolve(opts.appRoot),
     node = opts.node ?? process.execPath;
@@ -172,24 +169,14 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
       ? { MEMORY_CONVERSATION_MODE: "1", MEMORY_CAPTURE_NEW_SESSIONS: "1" }
       : {}),
   };
-  const quote = (s: string) => "'" + s.replaceAll("'", "'\\''") + "'";
   const handler = (client: string, action: string) => ({
     type: "command",
     timeout: 10,
-    command: [
-      "env",
-      ...Object.entries({
-        ...env,
-        MEMORY_QUEUE: join(dirname(opts.database), "queue", client),
-        MEMORY_MANAGED: "shared-agent-memory",
-      }).map(([k, v]) => k + "=" + v),
-      node,
-      runner,
-      action,
-      client,
-    ]
-      .map(quote)
-      .join(" "),
+    command: hookCommand({
+      ...env,
+      MEMORY_QUEUE: join(dirname(opts.database), "queue", client),
+      MEMORY_MANAGED: "shared-agent-memory",
+    }, node, [runner, action, client]),
   });
   const connection = (desktop = false, client = "claude") => {
     const clientEnv: Record<string, string> = {
@@ -240,7 +227,7 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
       // reject if they mention our runner to avoid duplicate capture.
       const oldOwned = old.filter((g: any) =>
         g.hooks?.some((h: any) =>
-          h.command?.includes("MEMORY_MANAGED=shared-agent-memory"),
+          isManagedHook(h.command),
         ),
       );
       const kept = groups.filter(
@@ -249,7 +236,7 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
       if (
         kept.some((g: any) =>
           g.hooks?.some((h: any) =>
-            h.command?.includes("MEMORY_MANAGED=shared-agent-memory"),
+            isManagedHook(h.command),
           ),
         )
       )

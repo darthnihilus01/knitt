@@ -30,3 +30,9 @@ Live local result: fresh Codex sessions verified automatic Stop capture and star
 ### Local conversation-memory preview
 
 Opt-in conversation mode adds stored-chat selection, direct-source links and cited checkpoint recall for local coding connections. Codex and Claude Code historical metadata formats were inspected locally and are fixture-tested; automatic native hook support remains subject to the client evidence above. Expanded tarball tests execute generated hooks and real MCP connections from a disposable installation. They do not establish that a native desktop application will invoke those hooks. Claude Code was not authenticated for a live pilot. Remote conversation mode is outside this preview. See [local memory](local-agent-memory.md).
+
+## Installer operating-system checks · 2026-11-14
+
+Native Windows setup uses PowerShell hooks and shell-free npm invocation; macOS and Linux retain POSIX hooks. The matrix workflow runs Node.js 24 and Python 3.12 on ubuntu-latest, macos-latest and windows-latest. Python is required only for legacy source-installer tests, not npm setup.
+
+Each runner executes type checking, the full test suite, and real tarball installation, generated hook execution, MCP/checkpoint handoff, doctor, update, rollback, failed update preservation and uninstall. A passing packaged check establishes those tested paths, not live compatibility with every agent application.

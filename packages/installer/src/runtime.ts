@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { npmCommand } from "./platform.ts";
 import { randomUUID } from "node:crypto";
 import { atomicWrite, type ConnectionOptions } from "./connections.ts";
 export const packageName = "@tinchu0/knitt";
@@ -85,10 +86,6 @@ export async function withInstallLock<T>(
   }
 }
 export function installRuntime(home: string, spec: string): Runtime {
-  if (process.platform === "win32")
-    throw new Error(
-      "Windows installer validation is pending; use WSL for this preview.",
-    );
   if (Number(process.versions.node.split(".")[0]) < 24)
     throw new Error("Node.js 24 or newer is required");
   const paths = runtimePaths(home);
@@ -102,9 +99,7 @@ export function installRuntime(home: string, spec: string): Runtime {
       { mode: 0o600 },
     );
     // Arguments are passed directly; no shell interpolation or install lifecycle scripts.
-    execFileSync(
-      "npm",
-      [
+    const npm = npmCommand([
         "install",
         "--prefix",
         staging,
@@ -115,7 +110,9 @@ export function installRuntime(home: string, spec: string): Runtime {
         "--save-exact",
         "--",
         spec,
-      ],
+      ]);
+    execFileSync(
+      npm.command, npm.args,
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 180_000 },
     );
     const root = join(staging, "node_modules", packageName);

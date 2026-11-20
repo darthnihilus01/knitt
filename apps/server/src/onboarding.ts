@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
@@ -22,12 +22,14 @@ import {
 } from "../../../packages/adapters/src/histories.ts";
 import {
   bindWorkspace,
+  bindingKey,
   canonicalWorkspace,
   controlSync,
   digest,
   syncStatus,
   syncWorkspace,
   syncDatabase,
+  SyncFailure,
 } from "../../../packages/cloud/src/local-sync.ts";
 
 type Pairing = {
@@ -54,6 +56,101 @@ export function registerOnboarding(
     if (!device)
       throw new Error("Connect this installation first with knitt_connect.");
     return device;
+  };
+  // Upload acknowledgement alone is not evidence that cloud history is readable.
+  const syncAndVerify = async (device = account(), approvedProjectId?: string) => {
+    const starting = syncStatus(home, workspace);
+    const projectId = approvedProjectId ?? starting.binding?.projectId;
+    const current = () => syncStatus(home, workspace);
+    const matches = () => {
+      const status = current(), active = credentials(home);
+      return active?.origin === device.origin && active.account.id === device.account.id &&
+        active.device.id === device.device.id && status.binding?.enabled === true && status.binding.projectId === projectId;
+    };
+    const changed = () => ({...current(), enabled: current().binding?.enabled ?? false, cloudVerified: false,
+      statusMessage: "Account or project sync selection changed. Check the current setup before retrying."});
+    if (!starting.binding?.enabled) return {...starting, enabled: false, cloudVerified: false};
+    if (!matches()) return changed();
+    let result: {discovered?: number; incompleteSources?: number; emptySources?: number; syncedConversations?: {id: string; eventCount: number}[]; imported?: number; delivered?: number; importErrors?: number; pending?: number; skipped?: string};
+    try {
+      result = await syncWorkspace(home, env, workspace) as typeof result;
+    } catch (error) {
+      if (!matches()) return changed();
+      return {...(error instanceof SyncFailure ? error.report : {}), ...current(), enabled: true,
+        projectId, cloudUrl: device.origin + "/?projectId=" + encodeURIComponent(projectId!) + "#contexts",
+        cloudVerified: false, syncError: String(error)};
+    }
+    if (!matches()) return changed();
+    const cloudUrl = device.origin + "/?projectId=" + encodeURIComponent(projectId!) + "#contexts";
+    const expected = result.syncedConversations ?? [];
+    if (!expected.length || result.importErrors || result.pending || result.incompleteSources || result.emptySources) {
+      return {...result, ...current(), enabled: true, projectId, cloudUrl, cloudVerified: false,
+        statusMessage: result.importErrors ? "Some chats could not be imported; retry sync."
+          : result.incompleteSources ? "Some chats are still being written; retry sync after their records complete."
+          : result.discovered ? "Some chats contain no supported conversation text yet; retry after new messages."
+          : "No supported chats found. Open this project in a supported coding agent and retry sync."};
+    }
+    const verificationFailure = async (message: string) => {
+      if (!matches()) return changed();
+      const db = syncDatabase(home);
+      try {
+        db.prepare("INSERT OR REPLACE INTO sync_errors VALUES(?,?,?)")
+          .run(bindingKey(device, workspace), "Cloud history confirmation failed: " + message, new Date().toISOString());
+      } finally { db.close(); }
+      await api(device, `/api/private/projects/${encodeURIComponent(projectId!)}/status`, {status: "offline", pendingCount: current().pending}).catch(() => {});
+      return matches() ? {...current(), enabled: true} : changed();
+    };
+    const confirmConsent = async () => {
+      const response = await api<{projects: {id: string; installations?: {deviceId: string; status: string}[]}[]}>(device, "/api/private/projects");
+      if (!matches()) return false;
+      const installation = response.projects.find(project => project.id === projectId)?.installations?.find(item => item.deviceId === device.device.id);
+      if (installation?.status === "active") return true;
+      if (installation?.status === "paused" || installation?.status === "disconnected") {
+        const db = syncDatabase(home), key = bindingKey(device, workspace);
+        try {
+          if (installation.status === "paused") db.prepare("UPDATE bindings SET enabled=0 WHERE key=? AND project=?").run(key, projectId!);
+          else {
+            db.prepare("DELETE FROM uploads WHERE binding=?").run(key);
+            db.prepare("DELETE FROM bindings WHERE key=? AND project=?").run(key, projectId!);
+            db.prepare("DELETE FROM sync_errors WHERE binding=?").run(key);
+            db.prepare("DELETE FROM settings WHERE key=?").run("lastSync:" + key);
+          }
+        } finally { db.close(); }
+        return false;
+      }
+      throw new Error("Active project approval could not be confirmed");
+    };
+    try {
+      if (!await confirmConsent()) return {...current(), enabled: current().binding?.enabled ?? false, cloudVerified: false};
+      const visible = new Map<string, number>();
+      let cursor: string | null | undefined;
+      do {
+        const page: {conversations: {id: string; eventCount: number}[]; nextCursor?: string | null} = await api(device,
+          "/api/private/conversations?projectId=" + encodeURIComponent(projectId!) + (cursor ? "&cursor=" + encodeURIComponent(cursor) : ""));
+        if (!matches()) return changed();
+        for (const chat of page.conversations) visible.set(chat.id, chat.eventCount);
+        cursor = page.nextCursor;
+      } while (cursor);
+      if (!await confirmConsent()) return {...current(), enabled: current().binding?.enabled ?? false, cloudVerified: false};
+      const cloudVerified = expected.every(chat => (visible.get(chat.id) ?? 0) >= chat.eventCount);
+      if (!cloudVerified) return {...result, ...await verificationFailure("Imported conversations are not all readable"), projectId, cloudUrl, cloudVerified: false,
+        statusMessage: "Cloud history confirmation pending. Retry sync before reporting setup complete."};
+      await api(device, `/api/private/projects/${encodeURIComponent(projectId!)}/status`, {status: "up_to_date", pendingCount: 0});
+      if (!matches()) return changed();
+      const db = syncDatabase(home);
+      try { db.prepare("DELETE FROM sync_errors WHERE binding=? AND message LIKE 'Cloud history %'").run(bindingKey(device, workspace)); }
+      finally { db.close(); }
+      return {...result, ...current(), enabled: true, projectId, cloudUrl, cloudVerified: true,
+        visibleConversations: expected.length, statusMessage: "Project conversations are visible in Knitt Cloud.",
+        nextAction: "Show the cloud link and import counts. Use /knit to continue a conversation."};
+    } catch (error) {
+      if (!matches()) return changed();
+      return {...result, ...await verificationFailure(String(error)), projectId, cloudUrl, cloudVerified: false,
+        verificationError: String(error), statusMessage: "Cloud history confirmation failed. Retry sync before reporting setup complete.",
+        nextAction: error instanceof CloudError && [401, 403].includes(error.status)
+          ? "Device authorization is unavailable. Ask for explicit approval to reconnect; do not report cloud history ready."
+          : "Call knitt_sync to retry cloud history confirmation."};
+    }
   };
   const pairPath = join(home, "cloud", "pairing.json");
   const previews = new Map<
@@ -267,6 +364,12 @@ export function registerOnboarding(
         account: device.account,
         workspace: canonical,
         historyRoots: roots,
+        suggestedProjectTitle: basename(canonical),
+        historyCounts: histories.reduce<Record<string, number>>((counts, conversation) => {
+          const agent = conversation.client ?? "antigravity";
+          counts[agent] = (counts[agent] ?? 0) + 1;
+          return counts;
+        }, {}),
         histories: histories.map((c) => ({
           agent: c.client ?? "antigravity",
           id: c.id,
@@ -339,15 +442,13 @@ export function registerOnboarding(
         `/api/private/projects/${encodeURIComponent(projectId)}/consent`,
         { enabled: true },
       );
+      const active = credentials(home);
+      if (!active || active.origin !== device.origin || active.account.id !== device.account.id || active.device.id !== device.device.id)
+        throw new Error("Account or installation changed during approval; preview again.");
       bindWorkspace(home, device, preview.workspace, projectId, preview.roots);
       previews.delete(input.previewId);
       return output({
-        enabled: true,
-        projectId,
-        ...((await syncWorkspace(home, env, workspace)) as Record<
-          string,
-          unknown
-        >),
+        ...(await syncAndVerify(device, projectId)),
       });
     },
   );
@@ -395,10 +496,7 @@ export function registerOnboarding(
         "Retry durable pending uploads and sync complete histories for this approved workspace.",
       inputSchema: {},
     },
-    async () =>
-      output(
-        (await syncWorkspace(home, env, workspace)) as Record<string, unknown>,
-      ),
+    async () => output(await syncAndVerify()),
   );
   server.registerTool(
     "knitt_sync_control",

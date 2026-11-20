@@ -13,6 +13,17 @@ import { MemoryStore } from "../../memory/src/store.ts";
 
 export const digest = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
+export type SyncProgress = {
+  imported: number; delivered: number; importErrors: number;
+  incompleteSources: number; emptySources: number; discovered: number;
+};
+export class SyncFailure extends Error {
+  report: SyncProgress;
+  constructor(cause: unknown, report: SyncProgress) {
+    super(cause instanceof Error ? cause.message : String(cause), {cause});
+    this.report = report;
+  }
+}
 export function canonicalWorkspace(workspace: string) {
   return realpathSync(resolve(workspace));
 }
@@ -60,7 +71,26 @@ export function syncStatus(home: string, workspace: string) {
     const error = db
       .prepare("SELECT message,at FROM sync_errors WHERE binding=?")
       .get(key);
+    const pendingCount = Number(pending?.count ?? 0);
+    const lastSuccessfulSync = db.prepare("SELECT value FROM settings WHERE key=?")
+      .get("lastSync:" + key)?.value ?? null;
+    const setupState = !device ? "account_connection_required"
+      : !binding ? "sync_approval_required"
+      : !binding.enabled ? "paused"
+      : error ? "sync_error"
+      : pendingCount || !lastSuccessfulSync ? "initial_sync_pending" : "synced";
+    const guidance = {
+      account_connection_required: ["Account connection required", "Call knitt_connect to pair this installation; then preview and approve project sync."],
+      sync_approval_required: ["Account connected · project sync required", "Call knitt_preview_sync, show the discovered history and scope, and obtain explicit project choice and upload approval before knitt_enable_sync."],
+      paused: ["Project sync paused", "Ask for explicit approval before calling knitt_sync_control with action resume."],
+      sync_error: ["Project sync needs attention", "Report the error and pending uploads. Retry with knitt_sync; if authorization was revoked, ask for explicit reconnect approval."],
+      initial_sync_pending: ["Waiting for project history sync", "Call knitt_sync and report its import and cloud verification result. If no supported chats are found, explain that instead of claiming history is ready."],
+      synced: ["Project history synced", "Use knitt_sync to verify current cloud visibility before claiming chats are available; use /knit to continue work."],
+    };
     return {
+      setupState,
+      statusMessage: guidance[setupState][0],
+      nextAction: guidance[setupState][1],
       connected: !!device,
       account: device?.account,
       device: device?.device,
@@ -72,12 +102,9 @@ export function syncStatus(home: string, workspace: string) {
             historyRoots: JSON.parse(String(binding.roots)),
           }
         : null,
-      pending: Number(pending?.count ?? 0),
+      pending: pendingCount,
       error: error ?? null,
-      lastSuccessfulSync:
-        db
-          .prepare("SELECT value FROM settings WHERE key=?")
-          .get("lastSync:" + key)?.value ?? null,
+      lastSuccessfulSync,
     };
   } finally {
     db.close();
@@ -96,12 +123,10 @@ export function bindWorkspace(
     const previous = db
       .prepare("SELECT project, roots FROM bindings WHERE key=?")
       .get(key);
-    if (
-      previous &&
-      (previous.project !== projectId ||
-        previous.roots !== JSON.stringify(roots))
-    ) {
+    if (!previous || previous.project !== projectId || previous.roots !== JSON.stringify(roots)) {
       db.prepare("DELETE FROM uploads WHERE binding=?").run(key);
+      db.prepare("DELETE FROM sync_errors WHERE binding=?").run(key);
+      db.prepare("DELETE FROM settings WHERE key=?").run("lastSync:" + key);
     }
     db.prepare(
       "INSERT INTO bindings VALUES(?,?,?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET project=excluded.project,enabled=1,roots=excluded.roots",
@@ -144,6 +169,8 @@ export async function controlSync(
     if (action === "disconnect") {
       db.prepare("DELETE FROM uploads WHERE binding=?").run(key);
       db.prepare("DELETE FROM bindings WHERE key=?").run(key);
+      db.prepare("DELETE FROM sync_errors WHERE binding=?").run(key);
+      db.prepare("DELETE FROM settings WHERE key=?").run("lastSync:" + key);
     }
     return { action, enabled: action === "resume" };
   } finally {
@@ -174,6 +201,7 @@ async function performSync(
   if (!device) return { skipped: "disconnected" };
   const db = syncDatabase(home),
     key = bindingKey(device, workspace);
+  let imported = 0, importErrors = 0, incompleteSources = 0, emptySources = 0, delivered = 0, discovered = 0;
   try {
     const binding = db
       .prepare("SELECT * FROM bindings WHERE key=? AND enabled=1")
@@ -205,8 +233,8 @@ async function performSync(
       roots,
       workspace: canonicalWorkspace(workspace),
     });
-    let imported = 0;
-    let importErrors = 0;
+    discovered = conversations.length;
+    const syncedConversations: {id: string; eventCount: number}[] = [];
     for (const conversation of conversations) {
       try {
         const root = realpathSync(conversation.root),
@@ -241,6 +269,7 @@ async function performSync(
           });
           await new Promise<void>(resolve=>setImmediate(resolve));
           } while(report.remainingBytes && !report.incomplete);
+          if (report.incomplete || report.remainingBytes) incompleteSources++;
           let before: number | undefined;
           const ordered: { id: string; text: string }[] = [];
           do {
@@ -302,6 +331,8 @@ async function performSync(
             "INSERT OR IGNORE INTO uploads(id,binding,payload) VALUES(?,?,?)",
           ).run(batchId, key, JSON.stringify(payload));
         }
+        if (events.length) syncedConversations.push({id, eventCount: events.length});
+        else emptySources++;
         imported++;
       } catch (error) {
         importErrors++;
@@ -312,7 +343,7 @@ async function performSync(
         );
       }
     }
-    let delivered = 0;
+
     // Each persisted batch is replayed exactly after network failures or restart.
     for (const row of db
       .prepare(
@@ -346,21 +377,27 @@ async function performSync(
         )
         .get(key)!.count,
     );
-    if (!importErrors && pending === 0 && conversations.length > 0) {
-      db.prepare("DELETE FROM sync_errors WHERE binding=?").run(key);
+    if (incompleteSources || emptySources) {
+      db.prepare("INSERT OR REPLACE INTO sync_errors VALUES(?,?,?)")
+        .run(key, "History import pending: " + incompleteSources + " incomplete and " + emptySources + " empty sources", new Date().toISOString());
+    }
+    if (!importErrors && !incompleteSources && !emptySources && pending === 0 && syncedConversations.length > 0) {
+      // A background upload cannot clear a failed cloud readback; only explicit verification can.
+      db.prepare("DELETE FROM sync_errors WHERE binding=? AND message NOT LIKE 'Cloud history %'").run(key);
       db.prepare("INSERT OR REPLACE INTO settings VALUES(?,?)").run(
         "lastSync:" + key,
         new Date().toISOString(),
       );
     }
+    const verificationPending = db.prepare("SELECT 1 FROM sync_errors WHERE binding=? AND message LIKE 'Cloud history %'").get(key);
     await api(
       device,
       `/api/private/projects/${encodeURIComponent(String(binding.project))}/status`,
       {
         status:
-          importErrors || pending
+          importErrors || pending || verificationPending
             ? "offline"
-            : conversations.length
+            : incompleteSources || emptySources ? "waiting" : syncedConversations.length
               ? "up_to_date"
               : "waiting",
         pendingCount: Number(
@@ -373,6 +410,10 @@ async function performSync(
       },
     ).catch(() => {});
     return {
+      discovered: conversations.length,
+      incompleteSources,
+      emptySources,
+      syncedConversations,
       imported,
       delivered,
       importErrors,
@@ -411,7 +452,7 @@ async function performSync(
           ),
         },
       ).catch(() => {});
-    throw error;
+    throw new SyncFailure(error, {imported, delivered, importErrors, incompleteSources, emptySources, discovered});
   } finally {
     db.close();
   }

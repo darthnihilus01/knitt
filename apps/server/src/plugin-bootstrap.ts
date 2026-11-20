@@ -44,7 +44,7 @@ export function createPluginApp(env:NodeJS.ProcessEnv, transport:Transport) {
    const reason=error instanceof Error?error.message:String(error);
    fallbackStatus=server.registerTool('knitt_status',{
     description:'Check Knitt setup. The agent must supply or explicitly select the current project.',inputSchema:{}
-   },async()=>({content:[{type:'text',text:reason}],structuredContent:{setupRequired:'select_project',reason}}));
+   },async()=>({content:[{type:'text',text:reason}],structuredContent:{setupRequired:'select_project',setupState:'project_selection_required',statusMessage:'Project selection required',nextAction:'Show the actual current project directory and ask the user to confirm it before knitt_set_workspace. Never select the plugin installation directory.',reason}}));
    fallbackSelect=server.registerTool('knitt_set_workspace',{
     description:'Select the current project only after the user confirms its canonical location. Does not enable cloud sync.',
     inputSchema:{workspace:z.string().min(1),userApproved:z.literal(true)}

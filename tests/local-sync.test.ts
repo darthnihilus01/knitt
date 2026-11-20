@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -156,4 +157,39 @@ test('unfinished transcript does not stall later sources, and duplicate native I
   assert.ok(accepted.some(b=>b.conversations.some((c:any)=>c.origin==='claude')));
   const count=accepted.length;await syncWorkspace(home,{},first.workspace);assert.equal(accepted.length,count);
  }finally{globalThis.fetch=originalFetch;rmSync(first.root,{recursive:true,force:true});rmSync(second.root,{recursive:true,force:true});}
+});
+
+
+test('setup status distinguishes pairing, consent, initial import, queue, errors and pause', () => {
+ const f=historyFixture(),home=join(f.root,'home');
+ const device:Credentials={origin:'https://cloud.example.test',token:'test',account:{id:'a',email:'a@test.example'},device:{id:'d',name:'test'}};
+ const file=join(home,'cloud/device.json');
+ try {
+  assert.equal(syncStatus(home,f.workspace).setupState,'account_connection_required');
+  writeFileSync(file,JSON.stringify(device));
+  let status=syncStatus(home,f.workspace);
+  assert.equal(status.setupState,'sync_approval_required');
+  assert.equal(status.statusMessage,'Account connected · project sync required');
+  assert.match(status.nextAction,/knitt_preview_sync/);
+  bindWorkspace(home,device,f.workspace,'11111111-1111-4111-8111-111111111111',f.roots);
+  assert.equal(syncStatus(home,f.workspace).setupState,'initial_sync_pending');
+  const db=syncDatabase(home);
+  try {
+   const key=String(db.prepare('SELECT key FROM bindings').get()!.key);
+   db.prepare('INSERT INTO settings VALUES(?,?)').run('lastSync:'+key,new Date().toISOString());
+   assert.equal(syncStatus(home,f.workspace).setupState,'synced');
+   db.prepare('INSERT INTO uploads VALUES(?,?,?,0)').run('queued',key,'{}');
+   assert.equal(syncStatus(home,f.workspace).setupState,'initial_sync_pending');
+   db.prepare('INSERT INTO sync_errors VALUES(?,?,?)').run(key,'offline',new Date().toISOString());
+   assert.equal(syncStatus(home,f.workspace).setupState,'sync_error');
+   db.exec('UPDATE bindings SET enabled=0');
+   status=syncStatus(home,f.workspace);
+   assert.equal(status.setupState,'paused');
+   assert.match(status.nextAction,/explicit|approval/i);
+   db.exec('DELETE FROM bindings');
+   assert.equal(syncStatus(home,f.workspace).setupState,'sync_approval_required');
+   unlinkSync(file);
+   assert.equal(syncStatus(home,f.workspace).setupState,'account_connection_required');
+  } finally {db.close();}
+ } finally {rmSync(f.root,{recursive:true,force:true});}
 });

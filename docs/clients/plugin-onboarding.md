@@ -6,6 +6,18 @@ For personal work, inspect the canonical project and discovered histories, selec
 
 Use /knit to choose a local, personal cloud or accepted shared conversation. The host may display the command under the Knitt plugin namespace. Personal cloud selection pins the ingestion boundary. Shared selection pins the published version. New destination progress is captured separately. Sharing a reviewed publication always requires explicit action.
 
+## Completing project cloud sync
+
+Connector installation and account pairing do not mean your chats have synced. After restarting your coding agent, paste:
+
+> Set up Knitt cloud sync for my current project. Show me the history preview before uploading.
+
+The agent confirms the current project, shows discovered conversations and counts by agent, and asks you to choose or create a cloud project and approve existing and future supported messages. It imports the history, then verifies that the cloud conversation API can read the imported conversations before reporting them as available. It reports pending uploads and errors instead of treating partial setup as success. Existing approved mappings are reused; paused mappings require explicit approval to resume.
+
+In My contexts, **Add or finish project sync** remains available even if you already have chats. Only approved projects appear; the browser cannot discover unselected local workspaces. Paused and unfinished sync details expand automatically. Project links from setup filter the history list to that project, with **Show all projects** to return. Existing history is retained when paused or disconnected.
+
+The additive `knitt_status` fields `setupState`, `statusMessage` and `nextAction` distinguish `account_connection_required`, `project_selection_required` (unbound native plugin), `sync_approval_required`, `paused`, `initial_sync_pending`, `sync_error` and `synced`. `synced` reflects the local upload record; only the explicit sync result's `cloudVerified: true` confirms a current cloud read. Initial approval and explicit retries return import counts, cloud verification and a project URL; failed uploads remain queued. Account sign-in never implies project upload consent.
+
 ## Build and validation
 
 Maintainers build the application with npm run build, then run node scripts/package-plugins.ts with one or more targets. The supported artifact targets are linux-x64, linux-arm64, darwin-x64, darwin-arm64, win32-x64 and win32-arm64. KNITT_PLUGIN_OUTPUT selects the artifact directory. Runtime archives are downloaded from nodejs.org and verified against the version's official SHASUMS256.txt before extraction. Every artifact includes the Node license and runtime provenance.

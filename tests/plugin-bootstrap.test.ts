@@ -35,10 +35,26 @@ test('missing host roots requires an explicit project selection without uploadin
   await app.connect();await client.connect(a);
   const status=await client.callTool({name:'knitt_status',arguments:{}});
   assert.equal((status.structuredContent as any).setupRequired,'select_project');
+  assert.equal((status.structuredContent as any).setupState,'project_selection_required');
+  assert.match((status.structuredContent as any).nextAction,/confirm/i);
   const chosen=await client.callTool({name:'knitt_set_workspace',arguments:{workspace:project,userApproved:true}});
   assert.equal(chosen.isError,undefined);
   const ready=await client.callTool({name:'knitt_status',arguments:{}});
   assert.equal((ready.structuredContent as any).workspace,project);
   assert.equal((ready.structuredContent as any).binding,null);
+ }finally{await client.close();await app.close();rmSync(home,{recursive:true,force:true});}
+});
+
+
+test('multiple host roots require explicit project selection',async()=>{
+ const home=mkdtempSync(join(tmpdir(),'knitt-bootstrap-')),first=join(home,'first'),second=join(home,'second');mkdirSync(first);mkdirSync(second);
+ const [a,b]=InMemoryTransport.createLinkedPair(),app=createPluginApp({KNITT_HOME:home},b);
+ const client=new Client({name:'multi-root-host',version:'1'},{capabilities:{roots:{listChanged:true}}});
+ client.setRequestHandler(ListRootsRequestSchema,async()=>({roots:[{uri:pathToFileURL(first).href},{uri:pathToFileURL(second).href}]}));
+ try{
+  await app.connect();await client.connect(a);
+  const status=await client.callTool({name:'knitt_status',arguments:{}});
+  assert.equal((status.structuredContent as any).setupState,'project_selection_required');
+  assert.equal((await client.listTools()).tools.some(t=>t.name==='knitt_preview_sync'),false);
  }finally{await client.close();await app.close();rmSync(home,{recursive:true,force:true});}
 });

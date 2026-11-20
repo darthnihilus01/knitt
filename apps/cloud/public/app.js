@@ -210,10 +210,7 @@ function providerLink(name, target) {
   return button;
 }
 function signIn() {
-  const target =
-    location.pathname === "/pair"
-      ? "?returnTo=" + encodeURIComponent(location.pathname + location.search)
-      : "";
+  const target = "?returnTo=" + encodeURIComponent(location.pathname + location.search + (location.hash || ""));
   entry(
     el("span", "YOUR WORK, CONTINUED", "eyebrow"),
     el("h1", "Pick up the thread."),
@@ -271,13 +268,15 @@ async function pairing() {
     link("Cancel", "/", "btn-ghost"),
   );
 }
-function connect() {
+function connect(finishSync = false) {
   const dialog = el("dialog", undefined, "agent-setup");
   dialog.setAttribute("aria-label", "Connect coding agents");
   const prompt = el("textarea");
   prompt.readOnly = true;
   prompt.rows = 4;
-  prompt.value = "Run npx @tinchu0/knitt@latest plugin from this Git project to connect my coding agents.";
+  prompt.value = finishSync
+    ? "Set up Knitt cloud sync for my current project. Show me the history preview before uploading."
+    : "Run npx @tinchu0/knitt@latest plugin from this Git project to connect my coding agents.";
   prompt.setAttribute("aria-label", "Setup prompt");
   const status = el("p");
   status.setAttribute("role", "status");
@@ -300,8 +299,11 @@ function connect() {
     }
   }, "primary");
   dialog.append(
-    el("h2", "Connect your coding agents"),
-    el("p", "Open your Git project in a coding agent and paste this prompt into the chat. Knitt detects your installed agents. Setup needs Node.js 24+ and Git."),
+    el("h2", finishSync ? "Finish project sync" : "Connect your coding agents"),
+    el("p", finishSync
+      ? "Open the project you want to sync in your coding agent and paste this prompt. Review the history preview and approve uploads there. If Knitt tools are unavailable, connect your coding agents first."
+      : "Open your Git project in a coding agent and paste this prompt into the chat. Knitt detects your installed agents. Setup needs Node.js 24+ and Git."),
+    ...(finishSync ? [action("Connect coding agents first", () => { dialog.close(); connect(); }, "btn-ghost")] : []),
     prompt,
     group("actions", copy, action("Close", () => dialog.close(), "btn-ghost")),
     status,
@@ -322,7 +324,8 @@ const syncLabels = {
   waiting: "Waiting for first sync",
   paused: "Paused",
   disconnected: "Disconnected",
-  offline: "Offline—changes queued",
+  offline: "Sync error · offline or import failed",
+  error: "Sync error",
   reconnect: "Reconnect required",
 };
 function syncLabel(status) {
@@ -479,11 +482,15 @@ function relativeActivity(value) {
   return minutes<1?"just now":minutes<60?minutes+"m ago":minutes<1440?Math.floor(minutes/60)+"h ago":Math.floor(minutes/1440)+"d ago";
 }
 async function personalHistories(main) {
+  const projectId = new URLSearchParams(location.search).get("projectId");
+  if (projectId) main.append(link("Show all projects", "/#contexts", "btn-ghost btn-sm"));
   let cursor;
   const conversations = [];
   do {
     const page = await api(
-      "private/conversations" + (cursor ? "?cursor=" + path(cursor) : ""),
+      "private/conversations" + (projectId || cursor ? "?" + new URLSearchParams({
+        ...(projectId ? {projectId} : {}), ...(cursor ? {cursor} : {}),
+      }) : ""),
     );
     conversations.push(...page.conversations);
     cursor = page.nextCursor;
@@ -656,13 +663,19 @@ async function contexts(main, { view, id, version }) {
   ]);
   let hasPrivate = false;
   if (owned && !id) {
+    main.append(group("sync-setup-actions",
+      action("Add or finish project sync", () => connect(true), "btn-ghost"),
+      el("p", "Only approved projects appear here. Finish setup inside your coding agent to sync another project.", "subtle"),
+    ));
     const sync = el("details", undefined, "sync-disclosure");
     const summary = el("summary");
     const projectList = group("sync-projects");
     const projects = await projectCards(projectList, true);
     const installations = projects.flatMap(project => project.installations || []);
     const pending = installations.reduce((count, installation) => count + (installation.pendingCount || 0), 0);
-    const needsAttention = pending > 0 || installations.some(installation => ["offline", "reconnect", "reconnect_required"].includes(installation.runtimeStatus));
+    const needsAttention = pending > 0 || projects.some(project => !(project.installations || []).length) || installations.some(installation =>
+      installation.status !== "active" || !installation.lastSyncAt ||
+      ["offline", "error", "waiting", "syncing", "reconnect", "reconnect_required"].includes(installation.runtimeStatus));
     summary.append(el("strong", "Project sync"), el("span", projects.length + " projects · @" + identity.account.username, "subtle"));
     if (needsAttention) {
       summary.append(el("span", pending ? pending + " messages waiting to sync" : "An installation needs attention", "sync-warning"));
@@ -685,7 +698,7 @@ async function contexts(main, { view, id, version }) {
         el(
           "p",
           owned
-            ? "Connect your coding agents and approve sync for the project you want to continue."
+            ? "Your local chats haven’t synced yet. Finish setup inside your coding agent."
             : "Accept a context invitation to see it here.",
         ),
         owned

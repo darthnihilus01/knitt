@@ -59,6 +59,8 @@ try {
   writeFileSync(antigravityConfig, JSON.stringify({ mcpServers: { stitch: { command: 'preserve-stitch' } } }));
   const installed = run(process.execPath, [cli, ...base, '--yes']);
   assert.ok(installed.includes('tool connections verified'));
+  assert.match(installed,/Connectors installed\. Cloud history is not ready/);
+  assert.match(installed,/Set up Knitt cloud sync for my current project\. Show me the history preview before uploading\./);
   const globalServer = () => JSON.parse(readFileSync(antigravityConfig, 'utf8')).mcpServers[antigravityServerName(workspace)];
   assert.ok(globalServer().args[0].startsWith(home));
   const agHooks = JSON.parse(readFileSync(join(workspace, '.agents/hooks.json'), 'utf8'));

@@ -89,9 +89,9 @@ try{
  const denied=await a.callTool({name:'knitt_enable_sync',arguments:{previewId:preview.previewId,createTitle:'Fixture project',userApproved:false}});assert.equal(denied.isError,true);
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM private_events').get()!.n,0);
  offline=true;
- const queued=await a.callTool({name:'knitt_enable_sync',arguments:{previewId:preview.previewId,createTitle:'Fixture project',userApproved:true}});assert.equal(queued.isError,true);
+ const queued=await a.callTool({name:'knitt_enable_sync',arguments:{previewId:preview.previewId,createTitle:'Fixture project',userApproved:true}});assert.equal(queued.isError,undefined);assert.equal((queued.structuredContent as any).enabled,true);assert.equal((queued.structuredContent as any).cloudVerified,false);assert.equal((queued.structuredContent as any).setupState,'sync_error');
  assert.ok((await call(a,'knitt_status')).pending>0);
- offline=false;await call(a,'knitt_sync');const status=await call(a,'knitt_status');assert.equal(status.pending,0);assert.ok(status.lastSuccessfulSync);
+ offline=false;const retried=await call(a,'knitt_sync');assert.equal(retried.cloudVerified,true);assert.equal(retried.visibleConversations,3);const status=await call(a,'knitt_status');assert.equal(status.pending,0);assert.ok(status.lastSuccessfulSync);
  const conversations=(await deviceApi(homeA,'private/conversations')).data.conversations;assert.equal(conversations.length,3);
  const count=db.prepare('SELECT COUNT(*) AS n FROM private_events').get()!.n;await call(a,'knitt_sync');assert.equal(db.prepare('SELECT COUNT(*) AS n FROM private_events').get()!.n,count);
  assert.equal((await browser('carol','private/conversations/'+conversations[0].id+'/context')).status,404);

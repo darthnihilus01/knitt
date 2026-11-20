@@ -169,8 +169,10 @@ async function main() {
     plans.push(planAntigravity(globalOptions(runtime, projects)));
     await applyAll(plans, () => activateRuntime(home, runtime, projects, projects.some(p => p.clients.includes('antigravity')) ? configPath : state?.antigravityConfig), () => verifyAntigravity(globalOptions(runtime, projects)));
     console.log('Installed runtime ' + runtime.version + '. Data: ' + paths.data);
-    console.log('Restart connected agents and review MCP/hook trust prompts. Use /knit to select your conversation.');
-    console.log('For cloud sync, ask your agent to set up Knitt for this project. Account pairing and project-history consent are separate approvals.');
+    console.log('Connectors installed. Cloud history is not ready until account connection, project-history approval and initial sync are verified.');
+    console.log('Restart connected agents and review MCP/hook trust prompts. Then paste this into the agent:');
+    console.log('Set up Knitt cloud sync for my current project. Show me the history preview before uploading.');
+    console.log('Account pairing and project-history consent are separate approvals. After verified sync, use /knit to select your conversation.');
     if (projects.some(p => p.clients.includes('antigravity'))) console.log('Antigravity: project memory servers registered in ' + configPath + ' and tool connections verified. Restart Antigravity, open the project and use /knit in a new chat.');
     if (projects.some(p => p.clients.includes('claude-desktop'))) console.log('Claude Desktop: merge the generated project .memory/connectors/claude-desktop.json fragment into Desktop MCP settings, then restart.');
   });

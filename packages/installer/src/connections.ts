@@ -1,3 +1,5 @@
+import { antigravityServerName } from '../../adapters/src/server-name.ts';
+import { hookCommand, isManagedHook } from './platform.ts';
 import { readFileSync, existsSync, mkdirSync, writeFileSync, renameSync, rmSync, realpathSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -9,7 +11,7 @@ const begin = '# BEGIN shared-agent-memory', end = '# END shared-agent-memory';
 const statePath = '.memory/npm-connection.json';
 type Snapshot = { before: string | null; after: string };
 type State = { schema: 1; files: Record<string, Snapshot> };
-export type ConnectionOptions = { workspace: string; appRoot: string; database: string; repoId: string; clients: string[]; node?: string };
+export type ConnectionOptions = { workspace: string; appRoot: string; database: string; repoId: string; clients: string[]; node?: string; installationHome?: string };
 export type ConnectionPlan = { workspace: string; changes: Record<string, string | null>; expected: Record<string, string | null> };
 const read = (path: string) => existsSync(path) ? readFileSync(path, 'utf8') : null;
 const dump = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
@@ -53,14 +55,13 @@ export function readConnectionState(workspace: string): State {
   const value = JSON.parse(text);
   if (value.schema !== 1 || !object(value.files)) throw new Error('Unsupported connector state');
   for (const [file, snapshot] of Object.entries(value.files)) {
-    if (!['.mcp.json', '.codex/config.toml', '.codex/hooks.json', '.agents/hooks.json', '.agents/mcp_config.json', '.agents/skills/continue-chat/SKILL.md', '.claude/settings.local.json', '.claude/skills/continue-chat/SKILL.md', '.memory/connectors/claude-desktop.json'].includes(file)
+    if (!['.mcp.json', '.codex/config.toml', '.codex/hooks.json', '.agents/hooks.json', '.agents/mcp_config.json', '.agents/skills/continue-chat/SKILL.md', '.agents/skills/knit/SKILL.md', '.claude/settings.local.json', '.claude/skills/continue-chat/SKILL.md', '.claude/skills/knit/SKILL.md', '.memory/connectors/claude-desktop.json', '.memory/connectors/antigravity.json'].includes(file)
       || !object(snapshot) || typeof snapshot.after !== 'string' || !(snapshot.before === null || typeof snapshot.before === 'string')) throw new Error('Invalid connector state');
   }
   return value;
 }
 
 export function planConnection(opts: ConnectionOptions): ConnectionPlan {
-  if (process.platform === 'win32') throw new Error('Windows hook installation is not yet validated. Use WSL for this preview.');
   const workspace = realpathSync(opts.workspace), app = resolve(opts.appRoot), node = opts.node ?? process.execPath;
   if (!opts.clients.length || opts.clients.some(c => !clients.includes(c as any))) throw new Error('Choose a supported client');
   const extension = existsSync(join(app, 'apps/server/src/main.js')) ? 'js' : 'ts';
@@ -69,20 +70,20 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
   const state = readConnectionState(workspace), changes: Record<string, string> = {}, expected: Record<string, string | null> = {};
   const get = (path: string) => { const content = read(join(workspace, path)); expected[path] = content; return content; };
   const json = (path: string) => { const v = JSON.parse(get(path) ?? '{}'); if (!object(v)) throw new Error(path + ' must be an object'); return v; };
-  const env = { MEMORY_DB: resolve(opts.database), MEMORY_REPO: opts.repoId, MEMORY_WORKSPACE: workspace, MEMORY_SESSION_SELECTION: '1' };
-  const quote = (s: string) => "'" + s.replaceAll("'", "'\\''") + "'";
-  const handler = (client: string, action: string) => ({ type: 'command', timeout: 10, command: ['env', ...Object.entries({ ...env, MEMORY_QUEUE: join(dirname(opts.database), 'queue', client), MEMORY_MANAGED: 'shared-agent-memory' }).map(([k,v]) => k + '=' + v), node, runner, action, client].map(quote).join(' ') });
-  const connection = (desktop = false) => ({ command: node, args: [server], env: { ...env, ...(desktop ? { MEMORY_CHAT_CLIENT: 'claude-desktop' } : {}) } });
+  const env = { MEMORY_DB: resolve(opts.database), MEMORY_REPO: opts.repoId, MEMORY_WORKSPACE: workspace, MEMORY_SESSION_SELECTION: '1',
+    ...(opts.installationHome ? { SHARED_MEMORY_HOME: resolve(opts.installationHome), KNITT_HOME: resolve(opts.installationHome) } : {}) };
+  const handler = (client: string, action: string) => ({ type: 'command', timeout: 10, command: hookCommand({ ...env, ...(client === 'antigravity' ? { MEMORY_MCP_SERVER: antigravityServerName(workspace) } : {}), MEMORY_QUEUE: join(dirname(opts.database), 'queue', client), MEMORY_MANAGED: 'shared-agent-memory' }, node, [runner, action, client]) });
+  const connection = (desktop = false, chat = false) => ({ command: node, args: [server], env: { ...env, MEMORY_CLIENT: chat ? 'antigravity' : 'claude', ...(chat ? { MEMORY_PICKER_MODE: 'native_question' } : {}), ...(desktop ? { MEMORY_CHAT_CLIENT: 'claude-desktop' } : {}) } });
   function owned(path: string, location: string[], current: any) {
     if (current === undefined) return;
     const prior = state.files[path];
     const previous = prior ? location.reduce((v, key) => v?.[key], JSON.parse(prior.after)) : undefined;
     if (!equal(current, previous)) throw new Error('Unmanaged or modified connector conflict in ' + path);
   }
-  function mcp(path: string, desktop = false) {
+  function mcp(path: string, desktop = false, chat = false) {
     const value = json(path); value.mcpServers ??= {};
     owned(path, ['mcpServers', 'shared-memory'], value.mcpServers['shared-memory']);
-    value.mcpServers['shared-memory'] = connection(desktop); changes[path] = dump(value);
+    value.mcpServers['shared-memory'] = connection(desktop, chat); changes[path] = dump(value);
   }
   function hooks(path: string, client: string) {
     const value = json(path); value.hooks ??= {};
@@ -93,9 +94,9 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
       if (!Array.isArray(groups)) throw new Error('Invalid hooks in ' + path);
       // Only remove exact previously generated handlers. Edited handlers remain;
       // reject if they mention our runner to avoid duplicate capture.
-      const oldOwned = old.filter((g: any) => g.hooks?.some((h: any) => h.command?.includes('MEMORY_MANAGED=shared-agent-memory')));
+      const oldOwned = old.filter((g: any) => g.hooks?.some((h: any) => isManagedHook(h.command)));
       const kept = groups.filter((g: any) => !oldOwned.some((p: any) => equal(p, g)));
-      if (kept.some((g: any) => g.hooks?.some((h: any) => h.command?.includes('MEMORY_MANAGED=shared-agent-memory')))) throw new Error('Modified hook conflict in ' + path);
+      if (kept.some((g: any) => g.hooks?.some((h: any) => isManagedHook(h.command)))) throw new Error('Modified hook conflict in ' + path);
       value.hooks[event] = [...kept, { hooks: [handler(client, action)] }];
     }
     changes[path] = dump(value);
@@ -103,20 +104,24 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
   function skill(path: string) {
     const current = get(path);
     if (current && current !== state.files[path]?.after) throw new Error('Unmanaged or modified skill conflict');
-    changes[path] = readFileSync(join(app, 'skills/continue-chat/SKILL.md'), 'utf8');
+    changes[path] = readFileSync(join(app, 'skills/knit/SKILL.md'), 'utf8');
   }
+  if (opts.clients.some(client => client === 'codex' || client === 'antigravity')) skill('.agents/skills/knit/SKILL.md');
   for (const client of opts.clients) {
-    if (client === 'claude-code') { mcp('.mcp.json'); hooks('.claude/settings.local.json', 'claude'); skill('.claude/skills/continue-chat/SKILL.md'); }
+    if (client === 'claude-code') { mcp('.mcp.json'); hooks('.claude/settings.local.json', 'claude'); skill('.claude/skills/knit/SKILL.md'); }
     if (client === 'claude-desktop') mcp('.memory/connectors/claude-desktop.json', true);
     if (client === 'antigravity') {
-      mcp('.agents/mcp_config.json');
+      // Antigravity loads MCP servers globally or from plugins, not this project file.
+      // Retain the legacy project entry for existing tooling and export a mergeable fragment.
+      mcp('.agents/mcp_config.json', false, true);
+      mcp('.memory/connectors/antigravity.json', false, true);
       const path = '.agents/hooks.json', value = json(path);
       owned(path, ['shared-memory'], value['shared-memory']);
       value['shared-memory'] = { SessionStart: [handler('antigravity', 'recall')], Stop: [handler('antigravity', 'capture')] };
       changes[path] = dump(value);
     }
     if (client === 'codex') {
-      skill('.agents/skills/continue-chat/SKILL.md'); hooks('.codex/hooks.json', 'codex');
+      hooks('.codex/hooks.json', 'codex');
       const path = '.codex/config.toml', current = get(path) ?? '';
       const parsed = parseToml(current);
       let base = current;
@@ -126,7 +131,7 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
         if (!previous || !previous.after.includes(block)) throw new Error('Modified or unmanaged Codex config conflict');
         base = current.replace(block, '');
       } else if ((parsed.mcp_servers as any)?.['shared-memory']) throw new Error('Unmanaged Codex server conflict');
-      changes[path] = base.trimEnd() + '\n\n' + begin + '\n[mcp_servers.shared-memory]\ndefault_tools_approval_mode = "writes"\ncommand = ' + JSON.stringify(node) + '\nargs = ' + JSON.stringify([server]) + '\ncwd = ' + JSON.stringify(workspace) + '\nenv = { ' + Object.entries(env).map(([k,v]) => k + ' = ' + JSON.stringify(v)).join(', ') + ' }\ntools.choose_conversation.approval_mode = "approve"\n' + end + '\n';
+      changes[path] = base.trimEnd() + '\n\n' + begin + '\n[mcp_servers.shared-memory]\ndefault_tools_approval_mode = "writes"\ncommand = ' + JSON.stringify(node) + '\nargs = ' + JSON.stringify([server]) + '\ncwd = ' + JSON.stringify(workspace) + '\nenv = { ' + Object.entries({ ...env, MEMORY_CLIENT: 'codex' }).map(([k,v]) => k + ' = ' + JSON.stringify(v)).join(', ') + ' }\ntools.choose_conversation.approval_mode = "approve"\n' + end + '\n';
       parseToml(changes[path]);
     }
   }
@@ -172,6 +177,21 @@ function unapply(path: string, snapshot: Snapshot, current: string | null): stri
     if (current.includes(block)) return current.replace(block, '').trim() || before;
   }
   return current;
+}
+
+// Verification may await while users add unrelated JSON settings. Undo only our
+// generated values rather than dropping those additions or abandoning rollback.
+export function rollbackConnectionPlan(plan: ConnectionPlan) {
+  for (const [path, before] of Object.entries(plan.expected).reverse()) {
+    if (!(path in plan.changes)) continue;
+    const after = plan.changes[path], target = join(plan.workspace, path), current = read(target);
+    let restored: string | null;
+    if (current === after) restored = before;
+    else if (after !== null && current !== null) restored = unapply(path, { before, after }, current);
+    else continue; // A new user-created value owns a file we removed.
+    if (restored === current) continue;
+    if (restored === null) rmSync(target, { force: true }); else atomicWrite(target, restored);
+  }
 }
 
 export function planUninstall(workspace: string): ConnectionPlan {

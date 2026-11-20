@@ -1,0 +1,22 @@
+---
+name: knitt-setup
+description: Connect Knitt to your account, continue your work or accept a friend's invitation, and approve automatic project history sync inside your coding agent.
+---
+
+Call knitt_status first. Report the real account, installation, current canonical workspace, sync status, last successful sync and any setup action required. Use the host's native question UI to present choices and obtain answers.
+
+If status reports `setupRequired: select_project`, the host did not supply one unambiguous project root. Show the actual current project's canonical location and ask the user to confirm it. Call knitt_set_workspace with that location and userApproved true only after confirmation, then call knitt_status again. Never choose the plugin installation folder or infer a project from imported conversation text. Selecting a local project does not enable cloud sync.
+
+If no account is connected, call knitt_connect with action begin. Show the installation name and approval code, open the returned browser approval URL, and wait for the user's sign-in. Poll through the same tool according to its returned interval. A browser approval pairs the installation. Project sync consent is a separate step. For expired pairing, offer to begin again. For revoked credentials or an account change, explain the old installation will stop syncing and use the confirmed reconnect action.
+
+After sign-in, offer both **Continue my work** and **Open a friend's invitation**.
+
+For personal work, call knitt_preview_sync. Show the canonical project, discovered source agents and conversation titles, history scope, and the available cloud projects. Ask the user to explicitly select an existing cloud project or create a new one and to approve private automatic sync. Call knitt_enable_sync using the approved preview only after that answer. Changed discovery, account, installation or workspace requires a fresh preview. Never infer approval from account sign-in or a matching project name.
+
+For a friend's invitation, call knitt_invitations to list invitations. Show sender, context and starting version. Obtain an explicit accept or decline answer before submitting it. Then open the shared conversation picker. Receiving an invitation works independently of enabling sync for the destination project. Explain that separate project consent is needed for automatically syncing the user's own future work.
+
+Use /knit to choose a conversation, showing its project, source agent and last synced time, or its sender and shared version. Wait for the user's selection. Summarize the selected context and next step once loaded. Capture the destination's new progress separately and preserve the selected source boundary.
+
+Use knitt_status after setup and show the observed readiness. Show an offline, revoked, paused, disconnected or setup-required state accurately. Offer pause/disconnect controls with an explanation of queued uploads, local capture and retained cloud history before asking for confirmation. Keep sharing and publication explicit.
+
+Credentials and capture state live outside the plugin directory. Ask the user to review and trust native plugin hooks in the host UI where required. Report missing tool connectivity as a setup gap. Use the tools and browser approval flow for onboarding.

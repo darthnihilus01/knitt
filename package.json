@@ -1,6 +1,6 @@
 {
   "name": "@tinchu0/knitt",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.7",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -32,8 +32,13 @@
     "knitt": "dist/packages/installer/src/cli.js"
   },
   "files": [
-    "dist/",
+    "dist/apps/server/",
+    "dist/packages/",
+    "dist/scripts/connector-setup.js",
+    "dist/skills/",
     "README.md",
+    "docs/usage.md",
+    "docs/clients/support-matrix.md",
     "docs/clients/connector-setup.md",
     "docs/clients/npm-installation.md",
     "LICENSE"
@@ -45,7 +50,7 @@
   "description": "Shared conversation memory for coding agents",
   "publishConfig": {
     "access": "public",
-    "tag": "next"
+    "tag": "latest"
   },
   "license": "Apache-2.0"
 }

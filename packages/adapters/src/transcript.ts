@@ -5,7 +5,7 @@ import { openQueue, redact } from "./hooks.ts";
 import type { ClientName, Scope } from "./hooks.ts";
 import { eventSchema } from "../../contracts/src/events.ts";
 
-type CaptureOptions = { directory: string; client: ClientName; scope: Scope; sessionId: string; path: string };
+type CaptureOptions = { directory: string; client: ClientName; scope: Scope; sessionId: string; path: string; endOffset?: number; maxRecords?: number };
 const windowBytes = 4 * 1024 * 1024;
 const maxLineBytes = 1024 * 1024;
 const hash = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
@@ -20,7 +20,8 @@ function textBlocks(value: unknown): string {
   }).join("\n");
 }
 
-function messageText(row: Record<string, any>): string | null {
+export function messageText(row: Record<string, any>): string | null {
+  if (row.isSidechain === true) return null;
   if (row.type === "USER_INPUT" && typeof row.content === "string") {
     const request = row.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
     return "user: " + (request ? request[1].trim() : row.content);
@@ -68,7 +69,7 @@ export function captureTranscript(options: CaptureOptions) {
     transaction = true;
     const key = hash(JSON.stringify({ client, scope, sessionId, path }));
     const previous = queue.prepare("SELECT offset,prefix FROM cursors WHERE id=?").get(key);
-    const size = fstatSync(fd).size;
+    const size = Math.min(fstatSync(fd).size, options.endOffset ?? Number.MAX_SAFE_INTEGER);
     let offset = previous ? Number(previous.offset) : 0;
     const prefix = (length: number) => {
       const buffer = Buffer.alloc(Math.min(length, 128));
@@ -81,7 +82,7 @@ export function captureTranscript(options: CaptureOptions) {
     let start = 0;
     let events = 0;
     let records = 0;
-    while (start < read && records < 500) {
+    while (start < read && records < (options.maxRecords ?? 500)) {
       const end = buffer.indexOf(10, start);
       if (end < 0 || end >= read) break;
       if (end - start > maxLineBytes) throw new Error("Transcript line exceeds 1 MiB");
@@ -108,7 +109,7 @@ export function captureTranscript(options: CaptureOptions) {
       records++;
       start = end + 1;
     }
-    if (read - start > maxLineBytes && records < 500) throw new Error("Transcript line exceeds 1 MiB");
+    if (read - start > maxLineBytes && records < (options.maxRecords ?? 500)) throw new Error("Transcript line exceeds 1 MiB");
     const nextOffset = offset + start;
     queue.prepare("INSERT INTO cursors VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET offset=excluded.offset,prefix=excluded.prefix")
       .run(key, nextOffset, prefix(nextOffset));

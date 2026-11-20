@@ -1,7 +1,8 @@
 import type { Conversation } from "./handoff.ts";
 
 export function conversationLabel(conversation: Conversation): string {
-  return [conversation.title || "(untitled)", conversation.workspace, conversation.modified]
+  const name = conversation.client ? { codex: "Codex", claude: "Claude", antigravity: "Antigravity" }[conversation.client] : undefined;
+  return [(name ? "[" + name + "] " : "") + (conversation.title || "(untitled)"), conversation.workspace, conversation.modified]
     .join(" · ").replace(/[\x00-\x1f\x7f]/g, " ");
 }
 

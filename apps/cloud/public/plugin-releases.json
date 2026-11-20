@@ -1,0 +1,33 @@
+{
+  "plugins": [
+    {
+      "host": "codex",
+      "name": "Codex desktop",
+      "status": "preview",
+      "message": "Experimental Codex preview for Linux x64. Automatic adapter sync has been tested; desktop hook invocation and two-account sharing are still being verified.",
+      "releaseUrl": "https://github.com/darthnihilus01/knitt/releases/tag/knitt-plugins-v0.1.0-beta.6-rc.1",
+      "downloads": [
+        {
+          "label": "Linux x64",
+          "url": "https://github.com/darthnihilus01/knitt/releases/download/knitt-plugins-v0.1.0-beta.6-rc.1/knitt-codex-linux-x64-0.1.0-beta.6-rc.1.zip",
+          "sha256": "beff2e45302ba4d24460d88ff53348265c6b58491ffb307ff53257fda211a407"
+        }
+      ],
+      "directoryStatus": "not_published"
+    },
+    {
+      "host": "claude-code",
+      "name": "Claude Code",
+      "status": "pending",
+      "message": "The Knitt marketplace beta is being verified. This host\u2019s install link will appear after its plugin installation and capture checks pass.",
+      "directoryStatus": "not_published"
+    },
+    {
+      "host": "antigravity",
+      "name": "Antigravity",
+      "status": "pending",
+      "message": "The Knitt marketplace beta is being verified. This host\u2019s install link will appear after its plugin installation and capture checks pass.",
+      "directoryStatus": "not_published"
+    }
+  ]
+}

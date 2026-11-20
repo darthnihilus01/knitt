@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { npmCommand } from '../packages/installer/src/platform.ts';
 import { runtimePaths, withInstallLock, installRuntime, activateRuntime, readInstallation } from '../packages/installer/src/runtime.ts';
 
 test('runtime install is durable, versioned and does not replace active version on failure', async () => {
@@ -15,7 +16,8 @@ test('runtime install is durable, versioned and does not replace active version 
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: '@tinchu0/knitt', version, type: 'module' }));
     writeFileSync(join(dir, 'dist/apps/server/src/main.js'), 'export {};');
     writeFileSync(join(dir, 'dist/packages/installer/src/cli.js'), "console.log('runtime ok');");
-    const result = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', root], { cwd: dir, encoding: 'utf8' }));
+    const npm = npmCommand(['pack', '--json', '--pack-destination', root]);
+    const result = JSON.parse(execFileSync(npm.command, npm.args, { cwd: dir, encoding: 'utf8' }));
     return join(root, (Array.isArray(result) ? result[0] : Object.values(result)[0] as any).filename);
   };
   try {

@@ -25,3 +25,25 @@ Sources: [Claude connectors](https://support.claude.com/en/articles/11176164-use
 Adapter progress: incremental JSONL capture and a synthetic Antigravity hook-to-MCP handoff pass process integration tests. This is separate from the real two-user pilot above.
 
 Live local result: fresh Codex sessions verified automatic Stop capture and startup-driven get_context recall. Both repository hooks were enabled through normal Codex review. Antigravity SessionStart ran, but account quota blocked the model response, so the real cross-agent handoff is pending.
+
+## Installer operating-system evidence · 2026-11-14
+
+| Platform | Implementation | Evidence |
+|---|---|---|
+| Linux | POSIX hooks and persistent npm runtime | Local full suite and packaged install, MCP, capture/recall, doctor, update, rollback, failed update and uninstall passed. |
+| macOS | POSIX hooks; Application Support data location | CI configured on macos-latest; native run and live client handoff not observed in this change. |
+| Windows | Native PowerShell hooks; shell-free npm JS entry point; LOCALAPPDATA storage | Windows command generation/npm discovery checked on Linux; CI configured on windows-latest. Native execution and live client handoff not yet observed. |
+
+The matrix workflow runs Node.js 24 and Python 3.12. Python is used only by legacy source-installer tests, not the npm runtime. All runners execute type checking, the full suite and the tarball lifecycle smoke test. Configured CI is not evidence that a remote run has passed.
+
+
+## Antigravity npm registration and picker · 2026-11-14
+
+Npm setup now registers a separate MCP entry per project in Antigravity’s global config and verifies its five tools before runtime activation. Project hooks name that entry and supply the native chat ID. Antigravity shows conversation options inside the same chat because a recorded native-form request returned `selected: false` without an accepted choice. Other coding clients use native forms where supported and in-chat options otherwise. Tests exercise explicit selection, cancellation, session isolation, single-use choice IDs, preservation of unrelated settings and rollback on failed server verification. Automated process evidence does not establish that a human completed this flow inside each client. Browser pickers remain a remote HTTP connector feature.
+
+
+## Cross-agent history discovery · 2026-11-14
+
+Coding connections identify their host with MEMORY_CLIENT. The picker excludes that source before searching/limiting, merges local Claude Code project JSONL, Codex indexed/session-file history and Antigravity indexed history, labels the source and orders by timestamp newest first. Tests cover every host/source pair, same-ID collisions across agents, indexed and session-file Codex discovery, incomplete-index fallback, source/branch attribution, redaction, worktrees, unrelated projects and subagent exclusion. Local scans confirmed Claude and Codex discovery for Weave; actual rigved connections returned 16 Codex histories for Antigravity and seven Antigravity histories for Codex, without importing a choice. No local Claude history was found for rigved.
+
+72 tests and the packaged install/update/rollback/uninstall smoke passed after the correction. Native visual behavior still depends on the host client; the test validates protocol behavior and source selection, not a human completing every client UI.

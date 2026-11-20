@@ -1,40 +1,51 @@
 # Knitt
 
-Carry selected repository conversation context between coding agents. Choose the chat you want to continue, retrieve its checkpoint through MCP, and capture new progress using supported coding hooks.
+Continue coding conversations across agents. Keep local memory, optionally sync supported project history privately to Knitt Cloud, and explicitly publish reviewed handoffs for another person.
 
-## npm installation (release candidate)
+Start with the **[Knitt usage guide](docs/usage.md)** for setup, choosing a conversation, continuing work across agents, saving checkpoints, and troubleshooting.
 
-The npm CLI is being prepared for publication. **It is not published yet:** the selected package is `@tinchu0/knitt`, and terminal login as `tinchu0` is verified. Until then, test the same distribution artifact locally:
+## npm installation
+
+Open your Git project in a coding agent and paste this into the chat:
+
+> Run `npx @tinchu0/knitt@latest plugin` from this Git project to connect my coding agents.
+
+Knitt detects Codex, Claude Code, and Antigravity from their local settings or executables on PATH. Add `--client` to choose specific agents. In an interactive terminal you can review the detected list before applying setup.
+
+After setup, restart the connected agents and review their trust prompts. Ask “Set up Knitt for this project” to pair your account and approve project sync, then use `/knit` to resume a conversation. The coding agent needs local shell access, Node.js 24+, and Git.
+
+For interactive setup from your own terminal, run:
 
 ```bash
-npm ci
-npm run build
-npm pack
-npx --yes --package ./tinchu0-knitt-0.1.0-beta.1.tgz knitt setup \
-  --package /absolute/path/to/tinchu0-knitt-0.1.0-beta.1.tgz
+npx @tinchu0/knitt setup
 ```
 
-Setup asks for a Git project folder and agents. It shows configuration changes before applying them, installs a persistent runtime in your user data directory, and leaves client login/trust prompts to the client. Node.js 24+ and Git are required. The npm installation path does not require Python or a source checkout once the tarball exists.
+Setup asks for a Git project folder and agents. It shows configuration changes before applying them, installs a persistent runtime in your user data directory, and leaves client login/trust prompts to the client. Node.js 24+ and Git are required. No source checkout or Python is needed.
 
-Once a registry package has actually been published, the intended entry point is `npx @tinchu0/knitt@next setup`. That placeholder is not a current install command.
+For Antigravity only:
 
-Supported installer preview: Linux; macOS uses POSIX hooks but still needs platform validation. Native Windows installation is explicitly blocked pending implementation and tests; WSL can use the Linux path. Claude Desktop currently receives a configuration fragment requiring a manual merge into Desktop settings. No universal client compatibility is claimed.
+```bash
+npx @tinchu0/knitt setup --workspace /path/to/project --client antigravity
+```
+
+The installer includes native Linux, macOS and Windows paths. Windows uses built-in Windows PowerShell for hooks; macOS and Linux use POSIX hooks. CI is configured to run the full suite and packaged lifecycle checks on all three operating systems. Linux checks passed locally; native Windows/macOS runs and live client handoffs still need confirmation. Claude Desktop currently receives a configuration fragment requiring a manual merge into Desktop settings. No universal client compatibility is claimed.
 
 See [npm installation and lifecycle](docs/clients/npm-installation.md) and [remote connector setup](docs/clients/connector-setup.md).
 
 ## What gets connected
 
-- **Codex, Claude Code, Antigravity:** repository MCP settings and startup/stop hooks. Restart clients and approve MCP/hook trust normally.
+- **Codex, Claude Code:** repository MCP settings and startup/stop hooks. Restart clients and approve MCP/hook trust normally.
+- **Antigravity:** project startup/stop hooks plus automatic registration in `~/.gemini/config/mcp_config.json`. Each project gets its own server name. Setup verifies its memory tools before activating the runtime. Restart Antigravity and use `/knit` in a fresh chat. Choose a conversation inside the same coding interface. Antigravity uses its selectable question UI; clients with native MCP forms can use those.
 - **Claude Desktop:** a generated local MCP fragment; chat checkpoints use tool calls rather than coding hooks.
 - **ChatGPT / Claude web:** authenticated HTTP MCP is implemented, but requires your own public HTTPS endpoint and compatible OAuth provider. Local CLI setup does not provision a shared server.
 
-The continue-chat skill calls the user picker. New sessions begin unselected. The current history importer discovers local Antigravity conversations in the connected repository, including linked worktrees. It does not access arbitrary Claude or ChatGPT account histories. Ordinary chat MCP clients must explicitly call memory tools to save checkpoints; MCP alone cannot passively capture every chat turn.
+The knit skill calls the user picker. New sessions begin unselected. The history importer discovers local Claude Code project transcripts, Codex sessions and Antigravity conversations in the connected repository, including linked worktrees. It excludes the current coding agent and sorts the other agents’ histories newest first. It does not access remote Claude or ChatGPT account histories. Ordinary chat MCP clients must explicitly call memory tools to save checkpoints; MCP alone cannot passively capture every chat turn.
 
-Local memory is local to one machine. Team sharing requires a shared authenticated service; identical repository names do not synchronize databases.
+Local installation alone uploads nothing. After browser account pairing, review the project and discovered histories inside the agent and approve private automatic sync. Select an existing cloud project explicitly when connecting another installation. Sharing with another person requires a reviewed publication, an invitation and acceptance. Manage access at https://knit.deeeznuts.me; identical repository names never join projects automatically.
 
 ## Memory behavior
 
-The tools are `choose_conversation`, `get_context`, `search_memory`, `get_evidence` and `save_memory`; ordinary chat profiles also expose `start_session`. Repository/session checks prevent one session from silently choosing another session's feature. The HTTP gateway validates JWT issuer, audience, expiry, subjects and scopes. Allowed users of a repository service share its feature evidence; finer team roles remain future work.
+Local memory tools include `choose_conversation`, `get_context`, `search_memory`, `get_evidence` and `save_memory`; ordinary chat profiles also expose `start_session`. Repository/session checks prevent one session from silently choosing another session's feature. The HTTP gateway validates JWT issuer, audience, expiry, subjects and scopes. Allowed users of a repository service share its feature evidence; finer team roles remain future work.
 
 Evidence stores supported user/assistant text, with stable IDs for deduplication. Raw tool results, images and hidden reasoning are excluded. Bounded context reports truncation; search/evidence tools retrieve older detail. Recalled material can be stale or conflicting and is reference material, not authorization to edit files. Basic credential redaction is best effort.
 
@@ -51,7 +62,7 @@ npm run test:package
 
 The legacy Python development installer remains available under `scripts/connect.py`. Published CLI setup and handoff installation use the Node-only planner.
 
-This repository remains a release candidate. Public release additionally requires publisher access confirmation, a full-history/private-data audit and supported-platform evidence. No npm publication or repository visibility change is performed by building or packing.
+The one-command installer resolves the npm `latest` tag. Building or packing locally does not publish a release. A packed installation can be tested with `npx --yes --package /absolute/path/to/package.tgz knitt setup --package /absolute/path/to/package.tgz`.
 
 ## License
 

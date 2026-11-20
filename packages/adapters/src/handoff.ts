@@ -1,3 +1,4 @@
+import { historyTimestamp } from "./history-time.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { resolve, join, relative } from "node:path";
@@ -5,11 +6,12 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { captureTranscript, splitText } from "./transcript.ts";
+import type { ClientName } from "./hooks.ts";
 import { openQueue, flush, redact } from "./hooks.ts";
 import { eventSchema } from "../../contracts/src/events.ts";
 import type { MemoryStore } from "../../memory/src/store.ts";
 
-export type Conversation = { id: string; title: string; workspace: string; root: string; modified: string };
+export type Conversation = { id: string; title: string; workspace: string; root: string; modified: string; client?: ClientName; transcript?: string; branch?: string; titleSource?: "native" | "fallback"; summary?: string };
 
 function workspaces(value: string): string[] {
   let parsed: unknown;
@@ -45,14 +47,14 @@ export function findConversations(roots: string[], workspace?: string): Conversa
         for (const directory of workspaces(String(row.workspace_uris))) {
           if (workspace && resolve(directory) !== resolve(workspace) && (!expectedRepository || commonDirectory(directory) !== expectedRepository)) continue;
           const conversation = { id, title: String(row.title), workspace: directory, root, modified: String(row.last_modified_time) };
-          const key = id + ":" + directory;
+          const key = JSON.stringify([realpathSync(root),id,directory]);
           const previous = found.get(key);
-          if (!previous || conversation.modified > previous.modified) found.set(key, conversation);
+          if (!previous || historyTimestamp(conversation.modified) > historyTimestamp(previous.modified)) found.set(key, conversation);
         }
       }
     } finally { db.close(); }
   }
-  return [...found.values()].sort((a, b) => b.modified.localeCompare(a.modified));
+  return [...found.values()].sort((a, b) => historyTimestamp(b.modified) - historyTimestamp(a.modified));
 }
 
 export function selectConversation(conversations: Conversation[], query: string): Conversation {
@@ -62,33 +64,48 @@ export function selectConversation(conversations: Conversation[], query: string)
   return matches[0];
 }
 
-export function importConversation(options: { conversation: Conversation; repoId: string; directory: string; store: MemoryStore }) {
+export function importConversation(options: { conversation: Conversation; repoId: string; directory: string; store: MemoryStore; featureId?: string; endOffset?: number; maxBatches?: number; maxRecords?: number }) {
   const { conversation, repoId, directory, store } = options;
-  const featureId = "antigravity:" + conversation.id;
-  const scope = { repoId, featureId };
-  const transcript = join(conversation.root, "brain", conversation.id, ".system_generated/logs/transcript.jsonl");
+  const client = conversation.client ?? "antigravity";
+  const featureId = options.featureId ?? client + ":" + conversation.id;
+  const scope = { repoId, featureId, ...(conversation.branch ? { branch: conversation.branch } : {}) };
+  const transcript = conversation.transcript ?? join(conversation.root, "brain", conversation.id, ".system_generated/logs/transcript.jsonl");
   let source = "transcript";
   let captured = 0;
+  let remainingBytes = 0;
+  let batches = 0;
+  let incomplete = false;
   if (existsSync(transcript)) {
     if (relative(realpathSync(conversation.root), realpathSync(transcript)).startsWith("..")) throw new Error("Transcript escapes the source data directory");
     let previousOffset = -1;
     for (;;) {
-      const report = captureTranscript({ directory, client: "antigravity", scope, sessionId: conversation.id, path: transcript });
+      const report = captureTranscript({ directory, client, scope, sessionId: conversation.id, path: transcript, endOffset: options.endOffset, maxRecords: options.maxRecords });
       captured += report.events;
-      if (report.remainingBytes === 0 || report.offset === previousOffset) break;
+      remainingBytes = report.remainingBytes;
+      incomplete = remainingBytes > 0 && report.records === 0;
+      batches++;
+      if (report.remainingBytes === 0 || report.offset === previousOffset || batches >= (options.maxBatches ?? Infinity)) break;
       previousOffset = report.offset;
     }
   } else {
+    if (client !== "antigravity") throw new Error("Selected conversation transcript is unavailable. Refresh the history list.");
     source = "conversation_index";
     const index = new DatabaseSync(join(conversation.root, "conversation_summaries.db"), { readOnly: true });
     const queue = openQueue(directory);
     try {
       const hasText = index.prepare("SELECT name FROM sqlite_master WHERE name='conversations_fts'").get();
       if (!hasText) throw new Error("This conversation has neither a readable transcript nor indexed text");
+      queue.exec("CREATE TABLE IF NOT EXISTS index_cursors(id TEXT PRIMARY KEY, chunk INTEGER NOT NULL)");
       queue.exec("BEGIN IMMEDIATE");
       try {
-        const rows = index.prepare("SELECT chunk_index,user_body,agent_body FROM conversations_fts WHERE conversation_id=? ORDER BY CAST(chunk_index AS INTEGER)").iterate(conversation.id);
+        const cursorKey=createHash("sha256").update(JSON.stringify({scope,session:conversation.id})).digest("hex");
+        const cursor=options.maxBatches ? Number(queue.prepare("SELECT chunk FROM index_cursors WHERE id=?").get(cursorKey)?.chunk ?? -1) : -1;
+        const limit=options.maxRecords??Number.MAX_SAFE_INTEGER;
+        let last=cursor, count=0;
+        const rows = index.prepare("SELECT chunk_index,user_body,agent_body FROM conversations_fts WHERE conversation_id=? AND CAST(chunk_index AS INTEGER)>? ORDER BY CAST(chunk_index AS INTEGER) LIMIT ?").iterate(conversation.id,cursor,limit);
+
         for (const row of rows) {
+          last=Number(row.chunk_index);count++;
           for (const [field, role] of [["user_body", "user"], ["agent_body", "assistant"]]) {
             if (typeof row[field] !== "string" || !row[field]) continue;
             const parts = splitText(redact(role + ": " + row[field]));
@@ -101,7 +118,11 @@ export function importConversation(options: { conversation: Conversation; repoId
             }
           }
         }
-        if (!captured) throw new Error("No indexed conversation text was found");
+        if(options.maxBatches){
+          queue.prepare("INSERT INTO index_cursors VALUES(?,?) ON CONFLICT(id) DO UPDATE SET chunk=excluded.chunk").run(cursorKey,last);
+          remainingBytes=count===limit?1:0;
+        }
+        if (!captured && !options.maxBatches) throw new Error("No indexed conversation text was found");
         queue.exec("COMMIT");
       } catch (error) { queue.exec("ROLLBACK"); throw error; }
     } finally { queue.close(); index.close(); }
@@ -114,6 +135,6 @@ export function importConversation(options: { conversation: Conversation; repoId
     if (report.delivered === 0) throw new Error("Memory delivery failed; imported events remain safely queued");
   }
   const total = store.context(scope).total;
-  if (!total) throw new Error("No supported conversation text was imported");
-  return { featureId, source, captured, delivered, total };
+  if (!total && !remainingBytes) throw new Error("No supported conversation text was imported");
+  return { featureId, source, captured, delivered, total, remainingBytes, incomplete };
 }

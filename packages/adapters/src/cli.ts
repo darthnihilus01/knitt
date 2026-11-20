@@ -1,3 +1,5 @@
+import { syncWorkspace } from '../../cloud/src/local-sync.ts';
+import { defaultHome } from '../../installer/src/runtime.ts';
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { capture, flush, recallInstruction, selectionInstruction } from "./hooks.ts";
@@ -25,6 +27,11 @@ try {
       payload = parsed;
     }
   }
+  // Private capture is independent of continuation selection, including new sessions.
+  if (action === 'capture') {
+    try { await syncWorkspace(process.env.KNITT_HOME ?? process.env.SHARED_MEMORY_HOME ?? defaultHome(), process.env, String(payload.cwd ?? process.env.MEMORY_WORKSPACE ?? process.cwd())); }
+    catch (error) { console.error('Knitt private sync queued: ' + String(error)); }
+  }
   let scope;
   let selectedSessionId: string | undefined;
   if (process.env.MEMORY_SESSION_SELECTION === "1" && action !== "flush") {
@@ -44,14 +51,19 @@ try {
       }
     } finally { store.close(); }
     if (!selection) {
-      if (action === "recall") console.log(JSON.stringify(selectionInstruction(client as ClientName, repoId, sessionId, workspace)));
+      if (action === "recall") console.log(JSON.stringify(selectionInstruction(client as ClientName, repoId, sessionId, workspace, process.env.MEMORY_MCP_SERVER)));
       else { console.error("Shared memory: no chat selected for this session; capture skipped"); console.log("{}"); }
       process.exit(0);
+    }
+    // Shared source text can occur anywhere in the host transcript. Agents save
+    // recipient-authored progress explicitly into the continuation instead.
+    if (action === "capture" && selection.featureId.startsWith("cloud-work:")) {
+      console.log("{}"); process.exit(0);
     }
     scope = { repoId, featureId: selection.featureId };
   } else scope = resolveScope(payload);
   if (action === "recall") {
-    console.log(JSON.stringify(recallInstruction(client as ClientName, scope, process.env.MEMORY_WORKSPACE, selectedSessionId)));
+    console.log(JSON.stringify(recallInstruction(client as ClientName, scope, process.env.MEMORY_WORKSPACE, selectedSessionId, process.env.MEMORY_MCP_SERVER)));
   } else if (action === "capture" || action === "flush") {
     const directory = process.env.MEMORY_QUEUE ?? resolve(".memory/queue");
     if (action === "capture") {

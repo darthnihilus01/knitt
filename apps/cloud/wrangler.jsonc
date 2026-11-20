@@ -1,0 +1,22 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "knitt-cloud",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [{ "pattern": "knit.deeeznuts.me", "custom_domain": true }],
+  "vars": { "APP_ORIGIN": "https://knit.deeeznuts.me" },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "knitt-cloud",
+    "database_id": "1e2647f3-6fec-42c6-928e-8d3ab64ecea7",
+    "migrations_dir": "migrations"
+  }]
+}

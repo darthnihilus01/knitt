@@ -14,3 +14,9 @@ dist/
 # Local Claude connector settings
 .mcp.json
 .claude/settings.local.json
+
+# Generated native plugin packages
+plugin-artifacts/
+
+# Reviewed npm release artifacts
+release-artifacts/

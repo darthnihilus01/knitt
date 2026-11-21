@@ -55,7 +55,7 @@ export function readConnectionState(workspace: string): State {
   const value = JSON.parse(text);
   if (value.schema !== 1 || !object(value.files)) throw new Error('Unsupported connector state');
   for (const [file, snapshot] of Object.entries(value.files)) {
-    if (!['.mcp.json', '.codex/config.toml', '.codex/hooks.json', '.agents/hooks.json', '.agents/mcp_config.json', '.agents/skills/continue-chat/SKILL.md', '.agents/skills/knit/SKILL.md', '.claude/settings.local.json', '.claude/skills/continue-chat/SKILL.md', '.claude/skills/knit/SKILL.md', '.memory/connectors/claude-desktop.json', '.memory/connectors/antigravity.json'].includes(file)
+    if (!['.mcp.json', '.codex/config.toml', '.codex/hooks.json', '.agents/hooks.json', '.agents/mcp_config.json', '.agents/skills/continue-chat/SKILL.md', '.agents/skills/knit/SKILL.md', '.agents/skills/knitt/SKILL.md', '.claude/settings.local.json', '.claude/skills/continue-chat/SKILL.md', '.claude/skills/knit/SKILL.md', '.claude/skills/knitt/SKILL.md', '.memory/connectors/claude-desktop.json', '.memory/connectors/antigravity.json'].includes(file)
       || !object(snapshot) || typeof snapshot.after !== 'string' || !(snapshot.before === null || typeof snapshot.before === 'string')) throw new Error('Invalid connector state');
   }
   return value;
@@ -101,14 +101,15 @@ export function planConnection(opts: ConnectionOptions): ConnectionPlan {
     }
     changes[path] = dump(value);
   }
-  function skill(path: string) {
+  function skill(path: string, sourceName = "knit") {
     const current = get(path);
     if (current && current !== state.files[path]?.after) throw new Error('Unmanaged or modified skill conflict');
-    changes[path] = readFileSync(join(app, 'skills/knit/SKILL.md'), 'utf8');
+    const source = join(app, 'skills', sourceName, 'SKILL.md');
+    changes[path] = readFileSync(existsSync(source) ? source : join(app, 'skills/knit/SKILL.md'), 'utf8');
   }
-  if (opts.clients.some(client => client === 'codex' || client === 'antigravity')) skill('.agents/skills/knit/SKILL.md');
+  if (opts.clients.some(client => client === 'codex' || client === 'antigravity')) { skill('.agents/skills/knit/SKILL.md'); skill('.agents/skills/knitt/SKILL.md', 'knitt'); }
   for (const client of opts.clients) {
-    if (client === 'claude-code') { mcp('.mcp.json'); hooks('.claude/settings.local.json', 'claude'); skill('.claude/skills/knit/SKILL.md'); }
+    if (client === 'claude-code') { mcp('.mcp.json'); hooks('.claude/settings.local.json', 'claude'); skill('.claude/skills/knit/SKILL.md'); skill('.claude/skills/knitt/SKILL.md', 'knitt'); }
     if (client === 'claude-desktop') mcp('.memory/connectors/claude-desktop.json', true);
     if (client === 'antigravity') {
       // Antigravity loads MCP servers globally or from plugins, not this project file.

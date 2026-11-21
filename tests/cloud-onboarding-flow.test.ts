@@ -52,6 +52,11 @@ test('pair → preview → approve → verify real cloud titles and messages →
   const preview=await x.call('knitt_preview_sync');
   assert.equal(preview.suggestedProjectTitle,'project');
   assert.deepEqual(preview.historyCounts,{antigravity:1,codex:1,claude:1});
+  assert.ok(preview.consentPrompt.includes(preview.workspace));
+  for(const title of ['Antigravity chat','Claude chat','Codex chat']) assert.ok(preview.consentPrompt.includes(title));
+  assert.match(preview.consentPrompt,/antigravity: 1/);
+  assert.match(preview.consentPrompt,/future sessions/);
+  assert.match(preview.nextAction,/native question/);
   assert.equal(x.cloud.db.prepare('SELECT count(*) AS n FROM private_events').get()!.n,0);
   await assert.rejects(x.call('knitt_enable_sync',{previewId:preview.previewId,createTitle:'Real project',userApproved:false}));
   assert.equal((await x.call('knitt_status')).binding,null);

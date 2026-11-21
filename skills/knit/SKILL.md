@@ -1,6 +1,6 @@
 ---
 name: knit
-description: Use when the user wants to set up Knitt account and project sync, or continue a local, privately synced, or shared coding conversation.
+description: Knitt coding agent memory - Set up Knitt account and project sync, or continue a local, privately synced, or shared coding conversation.
 ---
 
 <!-- shared-agent-memory -->
@@ -8,7 +8,7 @@ description: Use when the user wants to set up Knitt account and project sync, o
 
 ## Route the request first
 
-**A bare `/knit`, “knit”, “reload”, or “continue this chat” means continuation.** Immediately call `choose_conversation` with the startup hook’s session ID and actual workspace. Do not call `knitt_status`, inspect setup/tool-schema files, explore the repository, list invitations, or preview sync first. Tool discovery is only needed if the matching MCP tool is actually unavailable. Installation does not need to run again.
+**A bare `/knitt`, `/knit`, “knitt”, “knit”, “reload”, or “continue this chat” means continuation.** Immediately call `choose_conversation` with the startup hook’s session ID and actual workspace. Do not call `knitt_status`, inspect setup/tool-schema files, explore the repository, list invitations, or preview sync first. Tool discovery is only needed if the matching MCP tool is actually unavailable. Installation does not need to run again.
 
 Only explicit requests to connect an account, approve project sync, or fix installation use the setup section below. Do not infer setup intent from the skill's name or a disconnected cloud account; local continuation works without cloud login.
 
@@ -44,3 +44,9 @@ Report the initial sync's import counts, failures, pending uploads and project `
 ## ChatGPT source availability
 
 If capabilities reports ChatGPT unavailable, state exactly “ChatGPT history access unavailable through this connection.” Do not substitute another source or ask the user to copy, export or prepare context. The app sidebar may contain ChatGPT chats that the local coding-history reader cannot retrieve.
+
+## First-run Antigravity offer
+
+When the startup hook requests first-run onboarding, call knitt_status. If onboarding.offer is true, present Set up Knitt, Open a friend's invitation, and Later through ask_question. Only an explicit Later answer authorizes knitt_onboarding_control with action dismiss and userApproved true. Follow the account/project setup flow for setup; list invitations without enabling personal sync for shared work. Do not dismiss on hook execution or tool failure. Explicit setup requests bypass dismissal. Paused or approved mappings must not trigger an automatic setup offer.
+
+For a first-run invitation choice on a disconnected installation, complete knitt_connect and browser pairing before listing invitations. This does not approve personal project sync.

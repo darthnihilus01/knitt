@@ -55,6 +55,26 @@ test('multiple host roots require explicit project selection',async()=>{
   await app.connect();await client.connect(a);
   const status=await client.callTool({name:'knitt_status',arguments:{}});
   assert.equal((status.structuredContent as any).setupState,'project_selection_required');
-  assert.equal((await client.listTools()).tools.some(t=>t.name==='knitt_preview_sync'),false);
+  assert.equal((await client.listTools()).tools.some(t=>t.name==='knitt_preview_sync'),true);
+ }finally{await client.close();await app.close();rmSync(home,{recursive:true,force:true});}
+});
+
+
+test('cached initial tool inventory works after workspace selection without rediscovery',async()=>{
+ const home=mkdtempSync(join(tmpdir(),'knitt-stable-')),project=join(home,'project');mkdirSync(project);
+ const [a,b]=InMemoryTransport.createLinkedPair(),app=createPluginApp({KNITT_HOME:home,MEMORY_CLIENT:'antigravity'},b);
+ const client=new Client({name:'cached-host',version:'1'});
+ try{
+  await app.connect();await client.connect(a);
+  const initial=(await client.listTools()).tools.map(t=>t.name).sort();
+  for(const name of ['knitt_connect','knitt_preview_sync','knitt_enable_sync','knitt_sync','knitt_invitations','knitt_onboarding_control','choose_conversation'])assert.ok(initial.includes(name),name);
+  const blocked=await client.callTool({name:'knitt_invitations',arguments:{action:'list'}});
+  assert.equal(blocked.isError,true);
+  await client.callTool({name:'knitt_set_workspace',arguments:{workspace:project,userApproved:true}});
+  const status=await client.callTool({name:'knitt_status',arguments:{}});assert.equal((status.structuredContent as any).onboarding.offer,true);
+  const denied=await client.callTool({name:'knitt_onboarding_control',arguments:{action:'dismiss',userApproved:false}});assert.equal(denied.isError,true);
+  const later=await client.callTool({name:'knitt_onboarding_control',arguments:{action:'dismiss',userApproved:true}});assert.equal(later.isError,undefined);
+  const dismissed=await client.callTool({name:'knitt_status',arguments:{}});assert.equal((dismissed.structuredContent as any).onboarding.offer,false);
+  assert.deepEqual((await client.listTools()).tools.map(t=>t.name).sort(),initial);
  }finally{await client.close();await app.close();rmSync(home,{recursive:true,force:true});}
 });

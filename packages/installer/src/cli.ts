@@ -173,7 +173,7 @@ async function main() {
     console.log('Restart connected agents and review MCP/hook trust prompts. Then paste this into the agent:');
     console.log('Set up Knitt cloud sync for my current project. Show me the history preview before uploading.');
     console.log('Account pairing and project-history consent are separate approvals. After verified sync, use /knit to select your conversation.');
-    if (projects.some(p => p.clients.includes('antigravity'))) console.log('Antigravity: project memory servers registered in ' + configPath + ' and tool connections verified. Restart Antigravity, open the project and use /knit in a new chat.');
+    if (projects.some(p => p.clients.includes('antigravity'))) console.log('Antigravity: project memory servers registered in ' + configPath + ' and tool connections verified. Restart Antigravity and open a new chat in this project: Knitt will offer first-run setup. If hooks are disabled or no offer appears, send the setup prompt above. Use /knitt (or /knit) to continue a conversation.');
     if (projects.some(p => p.clients.includes('claude-desktop'))) console.log('Claude Desktop: merge the generated project .memory/connectors/claude-desktop.json fragment into Desktop MCP settings, then restart.');
   });
 }

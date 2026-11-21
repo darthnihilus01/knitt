@@ -53,6 +53,15 @@ export function bindingKey(device: Credentials, workspace: string) {
     canonicalWorkspace(workspace),
   ]);
 }
+function onboardingKey(workspace: string, device: Credentials | null) {
+  return "onboardingDismissed:" + digest([canonicalWorkspace(workspace), device?.origin ?? "", device?.account.id ?? "anonymous", device?.device.id ?? ""]);
+}
+export function dismissOnboarding(home: string, workspace: string) {
+  const db = syncDatabase(home);
+  try { db.prepare("INSERT OR REPLACE INTO settings VALUES(?,?)").run(onboardingKey(workspace, credentials(home)), new Date().toISOString()); }
+  finally { db.close(); }
+  return syncStatus(home, workspace);
+}
 export function syncStatus(home: string, workspace: string) {
   const device = credentials(home),
     db = syncDatabase(home);
@@ -71,6 +80,7 @@ export function syncStatus(home: string, workspace: string) {
     const error = db
       .prepare("SELECT message,at FROM sync_errors WHERE binding=?")
       .get(key);
+    const dismissed = !!db.prepare("SELECT 1 FROM settings WHERE key=?").get(onboardingKey(workspace, device));
     const pendingCount = Number(pending?.count ?? 0);
     const lastSuccessfulSync = db.prepare("SELECT value FROM settings WHERE key=?")
       .get("lastSync:" + key)?.value ?? null;
@@ -89,6 +99,7 @@ export function syncStatus(home: string, workspace: string) {
     };
     return {
       setupState,
+      onboarding: {offer: !binding && !dismissed, dismissed},
       statusMessage: guidance[setupState][0],
       nextAction: guidance[setupState][1],
       connected: !!device,

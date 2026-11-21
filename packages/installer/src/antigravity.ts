@@ -73,7 +73,7 @@ export async function verifyAntigravity(opts: Options) {
       if (!entry || !equal(entry, desired[name])) throw new Error('Missing or modified server registration');
       await client.connect(new StdioClientTransport({ ...entry, env: { ...process.env as Record<string, string>, ...entry.env }, stderr: 'pipe' }), { timeout: 10_000 });
       const tools = (await client.listTools(undefined, { timeout: 10_000 })).tools;
-      for (const tool of ['choose_conversation', 'get_context', 'get_evidence', 'search_memory', 'save_memory']) {
+      for (const tool of ['choose_conversation', 'get_context', 'get_evidence', 'search_memory', 'save_memory', 'knitt_status', 'knitt_connect', 'knitt_preview_sync', 'knitt_enable_sync', 'knitt_sync', 'knitt_invitations', 'knitt_onboarding_control']) {
         if (!tools.some(t => t.name === tool)) throw new Error('Missing tool ' + tool);
       }
     } catch (error) {

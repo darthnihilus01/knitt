@@ -81,3 +81,16 @@ export function selectionInstruction(client: ClientName, repoId: string, session
   if (client === "antigravity") return { injectSteps: [{ systemMessage: { systemMessage: instruction } }] };
   return { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: instruction } };
 }
+
+
+export function firstRunInstruction(workspace: string, serverName?: string, sessionId?: string) {
+  const instruction = "Knitt first-run setup for " + JSON.stringify(workspace) + ". " + (sessionId ? "Native sessionId: " + JSON.stringify(sessionId) + ". " : "") +
+    (serverName ? "Use MCP server " + JSON.stringify(serverName) + ". " : "") +
+    "Call knitt_status first and verify the current project. If onboarding.offer is true, use Antigravity ask_question to offer Set up Knitt, Open a friend's invitation, or Later. " +
+    "Set up Knitt: connect with knitt_connect if necessary, show browser pairing approval, then preview this project's history, obtain explicit project choice and upload consent, and call knitt_enable_sync. Confirm cloudVerified before claiming completion. " +
+    "Open a friend's invitation: if disconnected, first pair the account with knitt_connect and browser approval; then call knitt_invitations with action list, show the invitation, and obtain explicit acceptance before loading it. Do not enable personal history sync. " +
+    "Later: call knitt_onboarding_control with action dismiss and userApproved true only after that explicit choice, then continue the user's original task. " +
+    "Do not dismiss just because this instruction was emitted. If tools are unavailable, report the gap; leave setup unfinished. Never open a browser, upload history, or resume paused sync without the appropriate user choice and consent. " +
+    "Explicit /knit and /knitt requests mean continuation and must use the conversation picker instead of this offer.";
+  return {injectSteps: [{systemMessage: {systemMessage: instruction}}]};
+}

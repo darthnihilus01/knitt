@@ -6,7 +6,8 @@ import { registerOnboarding } from './onboarding.ts';
 import { startAutosync } from '../../../packages/cloud/src/local-sync.ts';
 import { cloudPicker } from './cloud-picker.ts';
 import { defaultHome } from '../../../packages/installer/src/runtime.ts';
-import { mkdirSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -103,10 +104,37 @@ export function createMemoryServer(env: NodeJS.ProcessEnv = process.env, options
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   }, async input => { const featureId = selectedFeature(input); if (featureId.startsWith('cloud-work:')) return result(await cloudAccess().recall(featureId,'search_memory',input.query,input.before)); return result({...store.search({ ...input, featureId }),...(featureId.startsWith("local:")?{indexing:continuations.context(featureId).indexing}:{})}); });
   const pendingChoices = new Map<string, { workspace: string; expires: number; choices: Map<string, {conversation:Conversation;boundary:LocalBoundary}> }>();
+  function syncAntigravityConversationTitle(sessionId: string, newTitle: string, onlyIfKnitting = false) {
+    try {
+      for (const root of defaultHistoryRoots(env).antigravity) {
+        const dbPath = join(root, "conversation_summaries.db");
+        if (!existsSync(dbPath)) continue;
+        let db: DatabaseSync | undefined;
+        try {
+          db = new DatabaseSync(dbPath);
+          if (onlyIfKnitting) {
+            const row = db.prepare("SELECT title FROM conversation_summaries WHERE conversation_id = ?").get(sessionId) as { title?: string } | undefined;
+            if (row && typeof row.title === "string" && /^knitting\b/i.test(row.title)) {
+              db.prepare("UPDATE conversation_summaries SET title = ? WHERE conversation_id = ?").run(newTitle, sessionId);
+            }
+          } else {
+            db.prepare("UPDATE conversation_summaries SET title = ? WHERE conversation_id = ?").run(newTitle, sessionId);
+          }
+        } catch {
+          // Best-effort update: ignore if locked or schema differs
+        } finally {
+          db?.close();
+        }
+      }
+    } catch {
+      // Best-effort: ignore if history roots cannot be inspected
+    }
+  }
   function importChoice(sessionId: string, conversation: Conversation, boundary?: LocalBoundary) {
     const started=performance.now();
     const selected=continuations.select(conversation,boundary);
     store.selectSession(boundRepo!,sessionId,selected.featureId,conversation.title);
+    syncAntigravityConversationTitle(sessionId, conversation.title, false);
     return result({selected:true,sessionId,title:conversation.title,client:conversation.client??'antigravity',
       workspace:conversation.workspace,repoId:boundRepo,featureId:selected.featureId,source:selected.descriptor,
       context:selected.context,timings:{...selected.timings,totalMs:performance.now()-started},
@@ -131,14 +159,18 @@ export function createMemoryServer(env: NodeJS.ProcessEnv = process.env, options
     if (cancel) { cloud?.cancel(sessionId); sourceTickets.delete(sessionId); pendingChoices.delete(sessionId); return result({ selected: false, selectionRequired: true }); }
     const sourceTicket=sourceTickets.get(sessionId);
     if(choiceId && sourceTicket?.choiceId===choiceId){
-      if(sourceTicket.workspace!==activeWorkspace||sourceTicket.expires<=Date.now())throw new Error('Source choice expired. Open /knit again.');
+      if(sourceTicket.workspace!==activeWorkspace||sourceTicket.expires<=Date.now())throw new Error('Source choice expired. Open /knitt again.');
       sourceTickets.delete(sessionId);pendingChoices.delete(sessionId);source='sources';choiceId=undefined;
     }
     if(source==='chatgpt') return result({selectionRequired:true,capabilities:[chatgptAvailability],message:chatgptAvailability.reason});
     if (cloud && localClient && (choiceId || ['personal','shared','sources'].includes(source)) && !pendingChoices.get(sessionId)?.choices.has(choiceId ?? '')) {
       const cloudStarted=performance.now();
       const response=await cloud.choose(localClient as 'codex'|'claude'|'antigravity',activeWorkspace,sessionId,query,choiceId,source==='personal'||source==='shared'||source==='sources'?source:undefined);
-      if(response) { pendingChoices.delete(sessionId);return result({...response,capabilities:[chatgptAvailability],timings:{cloudListingOrLoadMs:performance.now()-cloudStarted,totalMs:performance.now()-toolStarted}}); }
+      if(response) {
+        if ((response as any).selected && (response as any).title) syncAntigravityConversationTitle(sessionId, (response as any).title, false);
+        pendingChoices.delete(sessionId);
+        return result({...response,capabilities:[chatgptAvailability],timings:{cloudListingOrLoadMs:performance.now()-cloudStarted,totalMs:performance.now()-toolStarted}});
+      }
       if (choiceId && !pendingChoices.has(sessionId) && cloud.localTicketConsumed(sessionId,choiceId)) {choiceId=undefined;source='local';}
     }
     if(['personal','shared','sources'].includes(source)) return result({selectionRequired:true,connectionRequired:true,capabilities:[chatgptAvailability],message:'Cloud sources require account connection. Local conversations remain available; call choose_conversation with source:local.'});
@@ -153,6 +185,7 @@ export function createMemoryServer(env: NodeJS.ProcessEnv = process.env, options
     }
     // A new list/search invalidates older choice IDs, including empty searches.
     pendingChoices.delete(sessionId);
+    syncAntigravityConversationTitle(sessionId, "Knitt: Continue conversation", true);
     const destination = env.MEMORY_CLIENT ?? (env.MEMORY_CHAT_CLIENT ? "claude" : undefined);
     if (destination !== "antigravity" && destination !== "codex" && destination !== "claude" && destination !== "web") throw new Error("This connection does not identify the current agent. Rerun Knitt setup for this coding client.");
     const discoveryStarted=performance.now();

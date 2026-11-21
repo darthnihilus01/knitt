@@ -1,0 +1,22 @@
+# Antigravity first-run execution
+Policy: compact planning; dependency context; impact verification; final review delegation.
+Scope: first-run startup offer, scoped dismissal, stable MCP definitions, beta.10 aliases, packaging and native acceptance.
+Existing isolated branch retained; prior beta.8 release edits preserved. No latest promotion before native acceptance.
+
+Reconciliation: beta.10 adds /knitt alias installation and best-effort Antigravity selected-conversation title updates. Both preserved from owning source; onboarding fixes from 7570837 retained. Candidate beta.11 is the next unused version observed in npm.
+First-run/cached-inventory regressions RED→GREEN. TypeScript and first full suite 156/156 pass; packaged lifecycle passed before release-version bump.
+Native trial: installed Antigravity CLI 1.5.6 launched in disposable project; unsupported mcpServers --settings option replaced with workspace MCP configuration. Actual first chat is under observation.
+Review: no confirmed Critical/Important source findings; one invitation-branch clarity issue fixed by explicitly pairing disconnected accounts before listing invitations. Native rendering/full pairing remains an acceptance gate.
+Real installed native session: Antigravity CLI 1.5.13 in fresh disposable project invoked the matching knitt_status automatically in response to an ordinary greeting. Tool permission prompt observed; allowed the single read-only call without persisting permissions.
+Native acceptance observations (2026-11-21):
+- Actual Antigravity CLI 1.5.13, installed tarball, fresh Git workspace, native SessionStart hook: greeting triggered matching server's status and three selectable setup choices.
+- Later called onboarding_control only after native selection; local dismissal persisted with no binding. A second greeting session did not offer setup. Explicit setup after dismissal still paired the synthetic account and imported three actual test-project chats (cloudVerified true, zero failures/pending). Cloud browser displayed their real titles and message text; later assistant text appeared without another consent.
+- The first native consent question omitted preview details despite fetching them. Added consentPrompt and explicit nextAction to render the path, counts, titles and upload scope in the native question. Regression observed RED then GREEN. Reinstalled exact refined tarball into a second isolated project: native first-run setup now displayed the complete prompt verbatim, with explicit create/join/cancel choices. Final sync verification pending below.
+- This is an actual CLI host test, not execution of hook scripts alone. Antigravity IDE GUI was not tested. All cloud acceptance data uses disposable loopback worker/database and synthetic account; no personal cloud sync enabled.
+Final automated verification: 156/156 full suite; TypeScript, clean npm package lifecycle, independent source review pass (including consentPrompt follow-up).
+Dashboard: live app.js lacked onboarding guidance. Worker source matched newer owning checkout; dry-run passed. Deployed only changed asset app.js, worker version ab25057d-a4d8-47d9-8d81-dd5c03ab66d7. Live app.js matches source; unauthenticated private projects API returns 401. No migration.
+Final candidate tarball SHA256: 72fa70001550749c28106b3860511c78a1f211a476b807e71f8d2195e4f9460a.
+Publication: expired npm credentials restored; beta.11 next upload awaiting npm security-key authentication. latest unchanged until acceptance and external installation verification.
+Refined native acceptance PASS: selected Set up Knitt from automatic offer in second project; complete consentPrompt rendered verbatim; explicitly created preview-project; native enable_sync returned verified cloud visibility. Appended marker native-first-run-update-20261121 through actual native chat; authenticated synthetic cloud read showed four events and marker present, with no second approval. First project's browser detail also showed original user/assistant messages and real titles.
+npm publish accepted beta.11 (next), reported processing. Awaiting public registry availability before external installation and latest promotion.
+Cleanup: installer uninstalled both disposable project registrations after native sessions exited; both temporary MCP names absent from global config, four unrelated server registrations retained.

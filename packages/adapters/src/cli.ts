@@ -1,8 +1,8 @@
-import { syncWorkspace } from '../../cloud/src/local-sync.ts';
+import { syncStatus, syncWorkspace } from '../../cloud/src/local-sync.ts';
 import { defaultHome } from '../../installer/src/runtime.ts';
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { capture, flush, recallInstruction, selectionInstruction } from "./hooks.ts";
+import { capture, flush, recallInstruction, selectionInstruction, firstRunInstruction } from "./hooks.ts";
 import type { ClientName } from "./hooks.ts";
 import { resolveScope, resolveConnection } from "./scope.ts";
 import { captureTranscript } from "./transcript.ts";
@@ -25,6 +25,14 @@ try {
       const parsed = JSON.parse(text);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Hook input must be an object");
       payload = parsed;
+    }
+  }
+  if (action === "recall" && client === "antigravity" && !/^\s*\/knitt?(?:\s|$)/i.test(String(payload.lastUserInput ?? ""))) {
+    const {workspace} = resolveConnection(payload);
+    const home = process.env.KNITT_HOME ?? process.env.SHARED_MEMORY_HOME ?? defaultHome();
+    if (syncStatus(home, workspace).onboarding.offer) {
+      console.log(JSON.stringify(firstRunInstruction(workspace, process.env.MEMORY_MCP_SERVER, typeof payload.conversationId === "string" ? payload.conversationId : undefined)));
+      process.exit(0);
     }
   }
   // Private capture is independent of continuation selection, including new sessions.

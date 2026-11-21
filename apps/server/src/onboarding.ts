@@ -22,6 +22,7 @@ import {
 } from "../../../packages/adapters/src/histories.ts";
 import {
   bindWorkspace,
+  dismissOnboarding,
   bindingKey,
   canonicalWorkspace,
   controlSync,
@@ -165,6 +166,10 @@ export function registerOnboarding(
       expires: number;
     }
   >();
+  server.registerTool("knitt_onboarding_control", {
+    description: "Dismiss the automatic first-run offer only after the user explicitly selects Later. Does not connect an account or enable uploads. Explicit setup remains available.",
+    inputSchema: {action: z.literal("dismiss"), userApproved: z.literal(true)},
+  }, async () => output({...dismissOnboarding(home, workspace), dismissed: true}));
   server.registerTool(
     "knitt_invitations",
     {
@@ -359,17 +364,27 @@ export function registerOnboarding(
         device,
         "/api/private/projects",
       );
+      const historyCounts = histories.reduce<Record<string, number>>((counts, conversation) => {
+        const agent = conversation.client ?? "antigravity";
+        counts[agent] = (counts[agent] ?? 0) + 1;
+        return counts;
+      }, {});
+      const scope = "All supported user and assistant text in these workspace histories, including future sessions, is uploaded privately to this account after approval. Secrets are redacted by the existing importer. Tool outputs and unsupported message shapes are excluded. Select an existing project ID or explicitly create a new project; names never autojoin projects.";
+      const consentPrompt = [
+        "Approve private history sync for " + canonical + "?",
+        "Conversations: " + (Object.entries(historyCounts).map(([agent, count]) => agent + ": " + count).join(", ") || "No supported chats found"),
+        "Example titles: " + (histories.slice(0, 5).map(chat => chat.title).join("; ") || "None"),
+        scope,
+      ].join("\n\n");
       return output({
         previewId,
         account: device.account,
         workspace: canonical,
         historyRoots: roots,
         suggestedProjectTitle: basename(canonical),
-        historyCounts: histories.reduce<Record<string, number>>((counts, conversation) => {
-          const agent = conversation.client ?? "antigravity";
-          counts[agent] = (counts[agent] ?? 0) + 1;
-          return counts;
-        }, {}),
+        historyCounts,
+        consentPrompt,
+        nextAction: "Use consentPrompt verbatim as the native question text so the user sees the preview before approving. Offer explicit project selection or creation and cancellation; do not reduce this to a generic enable-sync question. Only an affirmative answer authorizes knitt_enable_sync.",
         histories: histories.map((c) => ({
           agent: c.client ?? "antigravity",
           id: c.id,
@@ -378,8 +393,7 @@ export function registerOnboarding(
           modified: c.modified,
         })),
         projects: projects.projects,
-        scope:
-          "All supported user and assistant text in these workspace histories, including future sessions, is uploaded privately to this account after approval. Secrets are redacted by the existing importer. Tool outputs and unsupported message shapes are excluded. Select an existing project ID or explicitly create a new project; names never autojoin projects.",
+        scope,
       });
     },
   );

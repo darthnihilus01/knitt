@@ -359,11 +359,22 @@ export async function handlePrivateSync(
   if (retrieval) {
     method(request, "GET");
     const id = decodeURIComponent(retrieval[1]);
+    return readConversation(env, account, id, retrieval[2], url);
+  }
+  return json({ error: "Not found" }, 404);
+}
+
+// Callers must provide an owner account; shared callers also supply a grant predicate
+// applied inside every metadata/event query, never an authorization-only preflight.
+export async function readConversation(env: CloudEnvironment, account: string, id: string, operation: string, url: URL, authorization?: {sql: string; params: string[]}) {
+    const db = env.DB;
+    const gate = authorization ? " AND " + authorization.sql : "";
+    const gateParams = authorization?.params ?? [];
     const conversation = await db
       .prepare(
-        `SELECT ${conversationFields} FROM private_conversations c WHERE c.account_id=? AND c.id=?`,
+        `SELECT ${conversationFields} FROM private_conversations c WHERE c.account_id=? AND c.id=?${gate}`,
       )
-      .bind(account, id)
+      .bind(account, id, ...gateParams)
       .first<Conversation>();
     if (!conversation) throw new HttpError(404, "Not found");
     const cutoff = Math.min(
@@ -371,25 +382,25 @@ export async function handlePrivateSync(
         conversation.cutoff,
       ),
       limit = integer(url.searchParams.get("limit"), 30, 100);
-    if (retrieval[2] === "evidence") {
+    if (operation === "evidence") {
       const evidence = await db
         .prepare(
-          `SELECT ${eventFields} FROM private_events WHERE account_id=? AND conversation_id=? AND id=? AND ingest_id<=?`,
+          `SELECT ${eventFields} FROM private_events WHERE account_id=? AND conversation_id=? AND id=? AND ingest_id<=?${gate}`,
         )
-        .bind(account, id, url.searchParams.get("eventId"), cutoff)
+        .bind(account, id, url.searchParams.get("eventId"), cutoff, ...gateParams)
         .first();
       if (!evidence) throw new HttpError(404, "Not found");
       return json({ evidence, cutoff });
     }
-    if (retrieval[2] === "search") {
+    if (operation === "search") {
       const q = url.searchParams.get("q") ?? "";
       if (!q.trim() || q.length > 512)
         throw new HttpError(400, "Enter a search query");
       const results = await db
         .prepare(
-          `SELECT id,sequence,role,substr(text,1,2000) AS text,timestamp,ingest_id AS ingestId FROM private_events WHERE account_id=? AND conversation_id=? AND ingest_id<=? AND instr(lower(text),lower(?))>0 ORDER BY sequence LIMIT ?`,
+          `SELECT id,sequence,role,substr(text,1,2000) AS text,timestamp,ingest_id AS ingestId FROM private_events WHERE account_id=? AND conversation_id=? AND ingest_id<=? AND instr(lower(text),lower(?))>0 ${gate} ORDER BY sequence LIMIT ?`,
         )
-        .bind(account, id, cutoff, q, limit)
+        .bind(account, id, cutoff, q, ...gateParams, limit)
         .all();
       return json({ results: results.results, cutoff });
     }
@@ -399,9 +410,9 @@ export async function handlePrivateSync(
     );
     const rows = await db
       .prepare(
-        `SELECT ${eventFields} FROM private_events WHERE account_id=? AND conversation_id=? AND ingest_id<=? AND sequence<? ORDER BY sequence DESC LIMIT ?`,
+        `SELECT ${eventFields} FROM private_events WHERE account_id=? AND conversation_id=? AND ingest_id<=? AND sequence<? ${gate} ORDER BY sequence DESC LIMIT ?`,
       )
-      .bind(account, id, cutoff, before, limit + 1)
+      .bind(account, id, cutoff, before, ...gateParams, limit + 1)
       .all<{ id: string; sequence: number; text: string }>();
     const selected = [];
     let size = 0;
@@ -420,6 +431,4 @@ export async function handlePrivateSync(
       cutoff,
       nextBefore,
     });
-  }
-  return json({ error: "Not found" }, 404);
 }

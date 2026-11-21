@@ -3,6 +3,7 @@ import type { CloudEnvironment } from './identity.ts';
 import { finishOAuth, startOAuth, type OAuthTransport, type Provider } from './oauth.ts';
 import { approvePairing, createPairing, exchangePairing, listDevices, previewPairing, revokeDevice } from './devices.ts';
 import { handleSharing } from './sharing.ts';
+import { handleLiveSharing } from './live-sharing.ts';
 import { handlePrivateSync } from './private-sync.ts';
 import { handleAdmin, isAdmin } from './admin.ts';
 export type { CloudEnvironment, AccountDatabase } from './identity.ts';
@@ -62,7 +63,7 @@ async function route(request: Request, env: CloudEnvironment, transport: OAuthTr
   if (device) { method(request,'DELETE'); return revokeDevice(env,auth,device[1]); }
   if (path === '/api/device-pairings/approve') { method(request,'POST'); return approvePairing(request,env,auth); }
   if (path === '/api/device-pairings/preview') { method(request,'GET'); return previewPairing(request,env,auth); }
-  return (await handlePrivateSync(request,env,auth)) ?? (await handleSharing(request,env,auth.account)) ?? json({error:'Not found'},404);
+  return (await handleLiveSharing(request,env,auth)) ?? (await handlePrivateSync(request,env,auth)) ?? (await handleSharing(request,env,auth.account)) ?? json({error:'Not found'},404);
 }
 
 export function createCloudWorker(transport: OAuthTransport = {}) {

@@ -1,3 +1,4 @@
+import {liveInvitations} from './live-sharing.ts';
 import { z } from "zod";
 import { hash, json as response, type CloudAccount, type CloudEnvironment } from "./identity.ts";
 
@@ -221,8 +222,8 @@ export async function handleSharing(request: Request, env: CloudEnvironment, acc
       const incoming = resource === "inbox";
       const { results } = await statement(`SELECT ${invitationFields} FROM ${invitationTables}
         WHERE ${incoming ? addressedTo + " AND i.status IN ('pending','accepted')" : "c.owner_id=?"} ORDER BY i.created_at DESC,i.id`,
-        ...(incoming ? [user,user] : [user])).all();
-      return response({ invitations: results, notice: revocationNotice });
+        ...(incoming ? [user,user] : [user])).all<Record<string,unknown>>();
+      return response({ invitations: [...results.map(i => ({...i,kind:"published_context"})), ...await liveInvitations(env,user,incoming)], notice: revocationNotice });
     }
     if (resource === "invitations" && id && action && method === "POST") {
       const eligible = `EXISTS(SELECT 1 FROM invitations i WHERE i.id=invitations.id AND ${addressedTo})`;
@@ -246,7 +247,7 @@ export async function handleSharing(request: Request, env: CloudEnvironment, acc
       return changed ? response({ invitation: changed, notice: revocationNotice }) : missing();
     }
     if (resource === "contacts") {
-      const fields = `p.id,other.username,p.status,CASE WHEN p.sender_id=? THEN 'outgoing' ELSE 'incoming' END AS direction`;
+      const fields = `p.id,other.id AS accountId,other.username,p.status,CASE WHEN p.sender_id=? THEN 'outgoing' ELSE 'incoming' END AS direction`;
       const tables = `contacts p JOIN accounts other ON other.id=CASE WHEN p.sender_id=? THEN p.recipient_id ELSE p.sender_id END`;
       if (!id && method === "GET") {
         const { results } = await statement(`SELECT ${fields} FROM ${tables} WHERE (p.sender_id=? OR p.recipient_id=?)

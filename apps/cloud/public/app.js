@@ -8,15 +8,17 @@ const views = {
   settings: "Settings",
   admin: "Admin",
   history: "My contexts",
+  live: "Shared with me",
 };
 const viewDescriptions = {
   contexts: "Pick up where you left off, in any coding agent.",
-  shared: "Reviewed context from the people you work with.",
+  shared: "Live conversations and published context from your friends.",
   people: "Find collaborators and manage your connections.",
   inbox: "Review invitations before sharing access.",
   settings: "Your account, connected agents, and sync controls.",
   admin: "Understand who’s joining and how Knitt is being used.",
   history: "Your conversation, with its original context.",
+  live: "A live conversation shared with you.",
 };
 const revokeNotice =
   "Revoking access stops future retrieval through Knitt. Content already loaded may remain in the recipient’s chat or local storage.";
@@ -541,7 +543,10 @@ async function history(main, { id, version, before }) {
   main.append(
     link("Back to my contexts", route("contexts"), "btn btn-ghost"),
     el("h2", data.conversation.title),
+    action("Share conversation", () => reviewConversationShare(id), "primary"),
   );
+  const access = await api("private/conversations/" + path(id) + "/invitations");
+  main.append(section("People with live access", ...(access.invitations?.filter(i => ["pending","accepted"].includes(i.status)).map(i => group("card", el("strong", "@" + i.recipient), el("p", i.status + " · whole conversation and future messages"), invitationActions(i,true))) ?? [])));
   for (const event of data.events)
     main.append(
       group("card", el("small", event.role), el("div", event.text, "content")),
@@ -558,6 +563,96 @@ async function history(main, { id, version, before }) {
       }, "btn-ghost"),
     );
 }
+async function reviewConversationShare(id) {
+  const data = await api("private/conversations/" + path(id) + "/context");
+  const dialog = el("dialog", undefined, "conversation-share");
+  dialog.setAttribute("aria-label", "Review conversation sharing");
+  dialog.addEventListener("close", () => dialog.remove());
+  const preview = group("share-preview");
+  const reviewedEvents = new Map();
+  const renderEvents = events => {
+    for(const event of events) reviewedEvents.set(event.id,event);
+    preview.replaceChildren(...[...reviewedEvents.values()].sort((a,b)=>a.sequence-b.sequence).map(event=>group("card",el("small",event.role),el("div",event.text,"content"))));
+  };
+  renderEvents(data.events);
+  let before = data.nextBefore;
+  const older = action("Review older messages", async () => {
+    const page = await api("private/conversations/" + path(id) + "/context?" + new URLSearchParams({cutoff:data.cutoff,before}));
+    renderEvents(page.events); before = page.nextBefore; older.hidden = before == null;
+  }, "btn-ghost");
+  older.hidden = before == null;
+  const scope = "Read-only access to this whole conversation and future synced messages. This does not share other conversations or projects. " + revokeNotice;
+  const choose = async () => {
+    const {contacts} = await api("contacts");
+    const friends = contacts.filter(c => c.status === "accepted");
+    dialog.replaceChildren(el("h2", "Choose a friend"), el("p", scope));
+    if (!friends.length) dialog.append(el("p", "Add and accept a friend before sharing."), link("Open People", route("people",id)));
+    for (const friend of friends) dialog.append(action("@" + friend.username, () => {
+      dialog.replaceChildren(el("h2", "Share with @" + friend.username + "?"), el("p", data.conversation.title), el("p", scope),
+        group("actions", action("Back", choose, "btn-ghost"), action("Cancel", () => dialog.close(), "btn-ghost"), action("Send invitation", async () => {
+          await api("private/conversations/" + path(id) + "/invitations", "POST", {recipientId:friend.accountId,userApproved:true});
+          dialog.close(); message("Invitation sent. Access begins after your friend accepts."); await dashboard();
+        }, "primary")));
+    }, "btn-ghost"));
+    dialog.append(action("Cancel", () => dialog.close(), "btn-ghost"));
+    for (const a of dialog.querySelectorAll?.("a") ?? []) a.addEventListener("click", () => dialog.close());
+  };
+  dialog.append(el("h2", "Review: " + data.conversation.title),
+    el("p", [data.conversation.origin, data.conversation.eventCount + " messages", "Last synced: " + data.conversation.updatedAt].join(" · ")),
+    el("p", scope), el("p", "Preview shows the latest messages. Older messages are also included; review them below."), preview, older,
+    group("actions", action("Cancel", () => dialog.close(), "btn-ghost"), action("Choose friend", choose, "primary")));
+  document.body.append(dialog); dialog.showModal();
+}
+let stopLiveHistory = () => {};
+async function liveHistory(main, {id}) {
+  stopLiveHistory();
+  const ticket = generation;
+  let stopped = false, timer, busy = false, cutoff = 0, before = null;
+  const events = new Map();
+  const title = el("h2"), status = el("p", "Loading live conversation…"); status.setAttribute("role", "status");
+  const content = group("live-messages"), controls = group("actions");
+  const leave = invitationActions({id,status:"accepted",kind:"live_conversation"},false);
+  const stop = () => {stopped=true; clearTimeout(timer); document.removeEventListener?.("visibilitychange", onVisible);};
+  const alive = () => !stopped && ticket === generation;
+  const accessEnded = () => {stop();events.clear();main.replaceChildren(link("Back to shared with me",route("shared"),"btn btn-ghost"),el("h2","Access ended"),el("p","This conversation is no longer available to this account."));};
+  const render = () => content.replaceChildren(...[...events.values()].sort((a,b)=>a.sequence-b.sequence).map(e=>group("card",el("small",e.role),el("div",e.text,"content"))));
+  const failure = error => {if(!alive())return; if([401,403,404].includes(error.status))accessEnded();else status.textContent="Offline · showing previously loaded messages. Try Refresh now.";};
+  const refresh = async (apply = false) => {
+    if(!alive() || busy)return;
+    busy=true;
+    try {
+      const data=await api("shared/conversations/"+path(id)+"/context"); if(!alive())return;
+      title.textContent=data.conversation.title;
+      if(!apply && cutoff && data.cutoff>cutoff){status.textContent="New messages available · choose Refresh now to load them.";return;}
+      if(apply || !cutoff){
+        const priorCutoff=cutoff;let page=data;
+        for(;;){
+          for(const event of page.events)events.set(event.id,event);
+          const overlaps=page.events.some(e=>e.ingestId<=priorCutoff);
+          if(!priorCutoff || overlaps || page.nextBefore==null){if(!priorCutoff)before=page.nextBefore;break;}
+          page=await api("shared/conversations/"+path(id)+"/context?"+new URLSearchParams({cutoff:data.cutoff,before:page.nextBefore}));if(!alive())return;
+        }
+        cutoff=data.cutoff;render();older.hidden=before==null;
+      }
+      status.textContent="Live conversation · read-only · checked "+new Date().toLocaleTimeString();
+    } catch(error){failure(error);} finally{busy=false;}
+  };
+  const older=action("Older messages",async()=>{
+    if(busy || before==null)return;busy=true;
+    try{const data=await api("shared/conversations/"+path(id)+"/context?"+new URLSearchParams({cutoff,before}));if(!alive())return;
+      const height=content.getBoundingClientRect?.().height ?? 0;
+      for(const event of data.events)events.set(event.id,event);before=data.nextBefore;render();older.hidden=before==null;
+      const added=(content.getBoundingClientRect?.().height ?? height)-height;if(added)window.scrollBy?.(0,added);
+    }catch(error){failure(error);}finally{busy=false;}
+  },"btn-ghost");
+  const tick=async()=>{if(!alive())return;if(!document.hidden)await refresh();if(alive())timer=setTimeout(tick,30000);};
+  const onVisible=()=>{if(!document.hidden)refresh();};
+  stopLiveHistory=stop;document.addEventListener?.("visibilitychange",onVisible);
+  controls.append(action("Refresh now",()=>refresh(true),"btn-ghost"),leave);
+  main.append(link("Back to shared with me",route("shared"),"btn btn-ghost"),title,el("p","Whole conversation and future synced messages. Updates depend on the owner's sync connection."),status,controls,older,content);
+  await refresh(true);if(alive())timer=setTimeout(tick,30000);
+}
+
 const path = (value) => encodeURIComponent(value);
 function route(view, id, version, before) {
   return "#" + [view, id, version, before].filter(Boolean).map(path).join("/");
@@ -596,13 +691,19 @@ function invitationActions(invitation, owner) {
     "actions",
     ...actions.map((verb) =>
       action(verb[0].toUpperCase() + verb.slice(1), () => {
-        const commit = () =>
-          change(
+        const commit = async () => {
+          if (invitation.kind === "live_conversation") {
+            await api("conversation-invitations/" + path(id) + "/" + verb,"POST",{});
+            if(verb === "accept") location.hash = route("live",id);
+            await dashboard(); message("Invitation updated."); return;
+          }
+          return change(
             "invitations/" + path(id) + "/" + verb,
             "POST",
             {},
             "Invitation updated.",
           );
+        };
         if (verb === "revoke")
           return confirmAction(
             "Revoke access?",
@@ -662,6 +763,14 @@ async function contexts(main, { view, id, version }) {
     api(owned ? "invitations" : "inbox"),
   ]);
   let hasPrivate = false;
+  if (!owned && !id) {
+    const live = await api("shared/conversations");
+    const rows = live?.conversations ?? [];
+    if(rows.length){
+      main.append(section("Live conversations", searchable(rows.map(c=>({...c,label:c.title+" "+c.senderUsername})),c=>link(c.title+" · @"+c.senderUsername+" · Live conversation",route("live",c.id),"row"),"Search live conversations…")));
+      hasPrivate=true;
+    }
+  }
   if (owned && !id) {
     main.append(group("sync-setup-actions",
       action("Add or finish project sync", () => connect(true), "btn-ghost"),
@@ -848,7 +957,8 @@ async function contexts(main, { view, id, version }) {
     );
   }
 }
-async function people(main) {
+async function people(main, {id} = {}) {
+  if(id) main.append(link("Return to conversation sharing",route("history",id),"btn btn-ghost"));
   const [{ contacts }, { contexts: all }, { invitations: sent }] =
     await Promise.all([api("contacts"), api("contexts"), api("invitations")]);
   main.append(
@@ -891,7 +1001,7 @@ async function people(main) {
         ...verbs.map((v) =>
           action(
             v[0].toUpperCase() + v.slice(1),
-            () => change("contacts/" + path(c.id) + "/" + v, "POST", {}),
+            () => v === "remove" ? confirmAction("Remove friend?", "This also ends all live conversation shares and pending live invitations between you. Published context access stays independent.", "Remove friend", () => change("contacts/" + path(c.id) + "/" + v, "POST", {})) : change("contacts/" + path(c.id) + "/" + v, "POST", {}),
             v === "accept" ? "primary btn-sm" : v === "remove" || v === "decline" ? "danger btn-sm" : "btn-sm",
           ),
         ),
@@ -919,9 +1029,7 @@ async function inbox(main) {
           "p",
           "@" +
             i.senderUsername +
-            " invited you, starting at version " +
-            i.startVersionNumber +
-            ".",
+            (i.kind === "live_conversation" ? " invited you to a live conversation. Includes the whole conversation and future synced messages, read-only." : " invited you, starting at version " + i.startVersionNumber + "."),
         ),
         invitationActions(i, false),
       ),
@@ -1076,12 +1184,13 @@ async function admin(main) {
   await load();
 }
 async function dashboard() {
+  stopLiveHistory();
   const ticket = ++generation;
   const active = current();
   const navbar = el("nav");
   navbar.setAttribute("aria-label", "Workspace");
   for (const [key, title] of Object.entries(views).filter(
-    ([key]) => key !== "history" && (key !== "admin" || identity?.isAdmin),
+    ([key]) => key !== "history" && key !== "live" && (key !== "admin" || identity?.isAdmin),
   )) {
     const a = link("", route(key), "");
     const iconMarkup = ICONS[key === "contexts" ? "layers" : key === "admin" ? "people" : key];
@@ -1089,7 +1198,7 @@ async function dashboard() {
     a.append(el("span", title));
     if (
       key === active.view ||
-      (key === "contexts" && active.view === "history")
+      (key === "contexts" && active.view === "history") || (key === "shared" && active.view === "live")
     )
       a.setAttribute("aria-current", "page");
     navbar.append(a);
@@ -1135,11 +1244,12 @@ async function dashboard() {
   loading.setAttribute("role", "status");
   main.append(loading);
   try {
-    if (active.view === "people") await people(main);
+    if (active.view === "people") await people(main, active);
     else if (active.view === "inbox") await inbox(main);
     else if (active.view === "settings") await settings(main);
     else if (active.view === "admin") await admin(main);
     else if (active.view === "history") await history(main, active);
+    else if (active.view === "live") await liveHistory(main, active);
     else await contexts(main, active);
   } catch (error) {
     if (ticket !== generation) return;

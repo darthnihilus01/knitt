@@ -174,14 +174,15 @@ export function registerOnboarding(
     "knitt_invitations",
     {
       description:
-        "List friend invitations independently of personal sync setup. Show sender, title and starting version. Accept or decline only after the user explicitly chooses that invitation and action.",
+        "List friend invitations independently of personal sync setup. Show sender, title and invitation kind: published context/version or live conversation including future messages. Accept or decline only after the user explicitly chooses that invitation and action.",
       inputSchema: {
         action: z.enum(["list", "accept", "decline"]),
         invitationId: z.string().uuid().optional(),
+        kind: z.enum(["published_context", "live_conversation"]).default("published_context"),
         userApproved: z.boolean().optional(),
       },
     },
-    async ({ action, invitationId, userApproved }) => {
+    async ({ action, invitationId, userApproved, kind }) => {
       const device = account();
       if (action === "list")
         return output(await api<Record<string, unknown>>(device, "/api/inbox"));
@@ -191,14 +192,14 @@ export function registerOnboarding(
         );
       const response = await api<Record<string, unknown>>(
         device,
-        "/api/invitations/" + encodeURIComponent(invitationId) + "/" + action,
+        (kind === "live_conversation" ? "/api/conversation-invitations/" : "/api/invitations/") + encodeURIComponent(invitationId) + "/" + action,
         {},
       );
       return output({
         ...response,
         next:
           action === "accept"
-            ? "Call choose_conversation and let the user select Shared with me, then this context and its published version. Personal autosync remains disabled until separate approval."
+            ? "Call choose_conversation and let the user select Shared with me, then this live conversation or published context/version. Personal autosync remains disabled until separate approval."
             : "Invitation declined.",
       });
     },
